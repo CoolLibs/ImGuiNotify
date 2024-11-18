@@ -80,8 +80,8 @@ struct Toast {
     std::string title{""};
     std::string content{""};
 
-    int                   dismissTime   = NOTIFY_DEFAULT_DISMISS;
-    std::function<void()> onButtonPress = nullptr; // A lambda variable, which will be executed when button in notification is pressed
+    int                   dismissTime{NOTIFY_DEFAULT_DISMISS};
+    std::function<void()> custom_imgui_content{}; // The lambda must capture everything by copy, it will be stored
 };
 
 class ToastImpl {
@@ -400,16 +400,8 @@ inline void RenderNotifications()
                 Text("%s", content); // Render content text
             }
 
-            // If a button is set
-            // TODO(Toast) render custom content
-            // if (currentToast.getOnButtonPress() != nullptr)
-            // {
-            //     // If the button is pressed, we want to execute the lambda function
-            //     if (Button(currentToast.getButtonLabel()))
-            //     {
-            //         currentToast.getOnButtonPress()();
-            //     }
-            // }
+            if (currentToast._toast.custom_imgui_content)
+                currentToast._toast.custom_imgui_content();
 
             PopTextWrapPos();
         }
