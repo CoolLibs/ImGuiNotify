@@ -10,7 +10,8 @@
  */
 
 #pragma once
-#include <chrono>     // For the notifications timed dissmiss
+#include <chrono> // For the notifications timed dissmiss
+#include <cstdint>
 #include <functional> // For storing the code, which executest on the button click in the notification
 #include <optional>
 #include <string>
@@ -26,14 +27,15 @@ namespace ImGui {
  * CONFIGURATION SECTION Start
  */
 
-static constexpr float NOTIFY_PADDING_X         = 20.f; // Bottom-left X padding
-static constexpr float NOTIFY_PADDING_Y         = 20.f; // Bottom-left Y padding
-static constexpr float NOTIFY_PADDING_MESSAGE_Y = 10.f; // Padding Y between each message
-#define NOTIFY_FADE_IN_OUT_TIME 1500                    // Fade in and out duration
-#define NOTIFY_DEFAULT_DISMISS  3000                    // Auto dismiss after X ms (default, applied only of no data provided in constructors)
-#define NOTIFY_OPACITY          0.8f                    // 0-1 Toast opacity
-#define NOTIFY_USE_SEPARATOR    false                   // If true, a separator will be rendered between the title and the content
-static constexpr size_t NOTIFY_RENDER_LIMIT{5};         // Max number of toasts rendered at the same time. Set to 0 for unlimited
+static constexpr float NOTIFY_PADDING_X         = 20.f;       // Bottom-left X padding
+static constexpr float NOTIFY_PADDING_Y         = 1.f * 20.f; // Bottom-left Y padding
+static constexpr float NOTIFY_PADDING_MESSAGE_Y = 1.f * 10.f; // Padding Y between each message
+static constexpr float NOTIFY_MIN_WIDTH         = 200.f;
+#define NOTIFY_FADE_IN_OUT_TIME 200             // Fade in and out duration
+#define NOTIFY_DEFAULT_DISMISS  5000            // Auto dismiss after X ms (default, applied only of no data provided in constructors)
+#define NOTIFY_OPACITY          1.f             // 0-1 Toast opacity
+#define NOTIFY_USE_SEPARATOR    false           // If true, a separator will be rendered between the title and the content
+static constexpr size_t NOTIFY_RENDER_LIMIT{5}; // Max number of toasts rendered at the same time. Set to 0 for unlimited
 // Warning: Requires ImGui docking with multi-viewport enabled
 #define NOTIFY_RENDER_OUTSIDE_MAIN_WINDOW false // If true, the notifications will be rendered in the corner of the monitor, otherwise in the corner of the main window
 
@@ -166,7 +168,12 @@ public:
 
     void reset_creation_time()
     {
-        _creationTime.emplace(std::chrono::steady_clock::now() + std::chrono::milliseconds{NOTIFY_FADE_IN_OUT_TIME + 50});
+        _creationTime.emplace(std::chrono::steady_clock::now() - std::chrono::milliseconds{NOTIFY_FADE_IN_OUT_TIME});
+    }
+
+    auto is_fading_out() const -> bool
+    {
+        return has_been_init() && getElapsedTimeMS() > _toast.dismissTime + NOTIFY_FADE_IN_OUT_TIME;
     }
 
     auto getFadePercent() const -> float
@@ -188,6 +195,9 @@ public:
 public:
     Toast                                                _toast;
     std::optional<std::chrono::steady_clock::time_point> _creationTime{};
+    float                                                _window_height{};
+    inline static uint64_t                               next_id{0};
+    std::string                                          _uniqueId{std::to_string(next_id++)};
 };
 
 inline std::vector<ToastImpl> notifications;
@@ -214,6 +224,8 @@ inline void RenderNotifications()
     const ImVec2 mainWindowSize = GetMainViewport()->Size;
 
     float height = 0.f;
+    // if (!notifications.empty() && notifications[0].is_fading_out())
+    //     height -= (1.f - notifications[0].getFadePercent()) * (notifications[0]._window_height + NOTIFY_PADDING_MESSAGE_Y);
 
     for (size_t i = 0; i < std::min(notifications.size(), NOTIFY_RENDER_LIMIT); ++i)
     {
@@ -228,26 +240,16 @@ inline void RenderNotifications()
         const char* content      = currentToast._toast.content.c_str();
         const char* defaultTitle = currentToast.getDefaultTitle().data();
         const float opacity      = currentToast.getFadePercent(); // Get opacity based of the current phase
+        // std::cout << opacity << '\n';
 
+        // ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity);
         // Window rendering
-        ImVec4 textColor = currentToast.getColor();
-        textColor.w      = opacity;
 
         // Generate new unique name for this toast
-        char windowName[50];
-        // TODO(Toast)
-#ifdef _WIN32
-        sprintf_s(windowName, "##TOAST%d", (int)i);
-#elif defined(__linux__) || defined(__EMSCRIPTEN__)
-        std::sprintf(windowName, "##TOAST%d", (int)i);
-#elif defined(__APPLE__)
-        std::snprintf(windowName, 50, "##TOAST%d", (int)i);
-#else
-        throw "Unsupported platform";
-#endif
+        auto windowName = "##TOAST" + currentToast._uniqueId;
 
         // PushStyleColor(ImGuiCol_Text, textColor);
-        SetNextWindowBgAlpha(opacity);
+        // SetNextWindowBgAlpha(opacity);
 
 #if NOTIFY_RENDER_OUTSIDE_MAIN_WINDOW
         short mainMonitorId = static_cast<ImGuiViewportP*>(GetMainViewport())->PlatformMonitor;
@@ -261,6 +263,7 @@ inline void RenderNotifications()
         // Set notification window position to bottom right corner of the main window, considering the main window size and location in relation to the display
         ImVec2 mainWindowPos = GetMainViewport()->Pos;
         SetNextWindowPos(ImVec2(mainWindowPos.x + mainWindowSize.x - NOTIFY_PADDING_X, mainWindowPos.y + mainWindowSize.y - NOTIFY_PADDING_Y - height), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+        ImGui::SetNextWindowSize({0.f, 100.f * opacity});
 #endif
 
         // Set notification window flags
@@ -268,11 +271,20 @@ inline void RenderNotifications()
         // {
         //     currentToast.setWindowFlags(NOTIFY_DEFAULT_TOAST_FLAGS | ImGuiWindowFlags_NoInputs);
         // }
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 5.f);
+        ImVec4 textColor = currentToast.getColor();
+        ImGui::PushStyleColor(ImGuiCol_Border, textColor); // Red color
+        // textColor.w = opacity;
 
-        Begin(windowName, nullptr, currentToast._toast.flags);
+        Begin(windowName.c_str(), nullptr, currentToast._toast.flags);
+
+        ImGui::Dummy({NOTIFY_MIN_WIDTH, 0.f});
 
         // Render over all other windows
         BringWindowToDisplayFront(GetCurrentWindow());
+
+        if (ImGui::IsWindowHovered())
+            currentToast.reset_creation_time();
 
         // Here we render the toast content
         {
@@ -333,10 +345,13 @@ inline void RenderNotifications()
         }
 
         // Save height for next toasts
-        height += GetWindowHeight() + NOTIFY_PADDING_MESSAGE_Y;
+        currentToast._window_height = GetWindowHeight();
+        height += currentToast._window_height + NOTIFY_PADDING_MESSAGE_Y;
 
         // End
         End();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
     }
 }
 } // namespace ImGui
