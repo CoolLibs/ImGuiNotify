@@ -29,12 +29,11 @@ namespace ImGui {
 static constexpr float NOTIFY_PADDING_X         = 20.f; // Bottom-left X padding
 static constexpr float NOTIFY_PADDING_Y         = 20.f; // Bottom-left Y padding
 static constexpr float NOTIFY_PADDING_MESSAGE_Y = 10.f; // Padding Y between each message
-#define NOTIFY_FADE_IN_OUT_TIME   150                   // Fade in and out duration
-#define NOTIFY_DEFAULT_DISMISS    3000                  // Auto dismiss after X ms (default, applied only of no data provided in constructors)
-#define NOTIFY_OPACITY            0.8f                  // 0-1 Toast opacity
-#define NOTIFY_USE_SEPARATOR      false                 // If true, a separator will be rendered between the title and the content
-#define NOTIFY_USE_DISMISS_BUTTON true                  // If true, a dismiss button will be rendered in the top right corner of the toast
-static constexpr size_t NOTIFY_RENDER_LIMIT = 5;        // Max number of toasts rendered at the same time. Set to 0 for unlimited
+#define NOTIFY_FADE_IN_OUT_TIME 1500                    // Fade in and out duration
+#define NOTIFY_DEFAULT_DISMISS  3000                    // Auto dismiss after X ms (default, applied only of no data provided in constructors)
+#define NOTIFY_OPACITY          0.8f                    // 0-1 Toast opacity
+#define NOTIFY_USE_SEPARATOR    false                   // If true, a separator will be rendered between the title and the content
+static constexpr size_t NOTIFY_RENDER_LIMIT{5};         // Max number of toasts rendered at the same time. Set to 0 for unlimited
 // Warning: Requires ImGui docking with multi-viewport enabled
 #define NOTIFY_RENDER_OUTSIDE_MAIN_WINDOW false // If true, the notifications will be rendered in the corner of the monitor, otherwise in the corner of the main window
 
@@ -52,15 +51,6 @@ enum class ToastType : uint8_t {
     Warning,
     Error,
     Info,
-    COUNT
-};
-
-enum class ToastPhase : uint8_t {
-    FadeIn,
-    Wait,
-    FadeOut,
-    Expired,
-    COUNT
 };
 
 enum class ToastPos : uint8_t {
@@ -71,7 +61,6 @@ enum class ToastPos : uint8_t {
     BottomCenter,
     BottomRight,
     Center,
-    COUNT
 };
 
 struct Toast {
@@ -152,75 +141,48 @@ public:
         }
     }
 
-    /**
-     * @brief Get the elapsed time in milliseconds since the creation of the object.
-     *
-     * @return int64_t The elapsed time in milliseconds.
-     * @throws An exception with the message "Unsupported platform" if the platform is not supported.
-     */
-    auto getElapsedTime() const -> std::chrono::nanoseconds
+    auto getElapsedTimeMS() const
     {
-        return std::chrono::steady_clock::now() - creation_time();
+        return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - creation_time()).count();
     }
 
-    /**
-     * @brief Get the current phase of the toast notification based on the elapsed time since its creation.
-     *
-     * @return ImGuiToastPhase The current phase of the toast notification.
-     *         - ImGuiToastPhase::FadeIn: The notification is fading in.
-     *         - ImGuiToastPhase::Wait: The notification is waiting to be dismissed.
-     *         - ImGuiToastPhase::FadeOut: The notification is fading out.
-     *         - ImGuiToastPhase::Expired: The notification has expired and should be removed.
-     */
-    auto getPhase() const -> ToastPhase
+    auto has_been_init() const -> bool
     {
-        const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(getElapsedTime()).count();
-
-        if (elapsed > NOTIFY_FADE_IN_OUT_TIME + _toast.dismissTime + NOTIFY_FADE_IN_OUT_TIME)
-        {
-            return ToastPhase::Expired;
-        }
-        else if (elapsed > NOTIFY_FADE_IN_OUT_TIME + _toast.dismissTime)
-        {
-            return ToastPhase::FadeOut;
-        }
-        else if (elapsed > NOTIFY_FADE_IN_OUT_TIME)
-        {
-            return ToastPhase::Wait;
-        }
-        else
-        {
-            return ToastPhase::FadeIn;
-        }
+        return _creationTime.has_value();
     }
-
-    /**
-     * Returns the percentage of fade for the notification.
-     * @return The percentage of fade for the notification.
-     */
-    auto getFadePercent() const -> float
+    auto has_expired() const -> bool
     {
-        const ToastPhase phase   = getPhase();
-        const int64_t    elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(getElapsedTime()).count();
-
-        if (phase == ToastPhase::FadeIn)
-        {
-            return ((float)elapsed / (float)NOTIFY_FADE_IN_OUT_TIME) * NOTIFY_OPACITY;
-        }
-        else if (phase == ToastPhase::FadeOut)
-        {
-            return (1.f - (((float)elapsed - (float)NOTIFY_FADE_IN_OUT_TIME - (float)_toast.dismissTime) / (float)NOTIFY_FADE_IN_OUT_TIME)) * NOTIFY_OPACITY;
-        }
-
-        return NOTIFY_OPACITY;
+        return has_been_init() && getElapsedTimeMS() > _toast.dismissTime + 2 * NOTIFY_FADE_IN_OUT_TIME;
     }
 
     auto creation_time() const -> std::chrono::steady_clock::time_point { return *_creationTime; }
 
     void init_creation_time_ifn()
     {
-        if (!_creationTime.has_value())
-            _creationTime.emplace(std::chrono::steady_clock::now());
+        if (_creationTime.has_value())
+            return;
+        _creationTime.emplace(std::chrono::steady_clock::now());
+    }
+
+    void reset_creation_time()
+    {
+        _creationTime.emplace(std::chrono::steady_clock::now() + std::chrono::milliseconds{NOTIFY_FADE_IN_OUT_TIME + 50});
+    }
+
+    auto getFadePercent() const -> float
+    {
+        auto const elapsed = getElapsedTimeMS();
+
+        if (elapsed < NOTIFY_FADE_IN_OUT_TIME)
+        {
+            return ((float)elapsed / (float)NOTIFY_FADE_IN_OUT_TIME) * NOTIFY_OPACITY;
+        }
+        else if (elapsed > _toast.dismissTime + NOTIFY_FADE_IN_OUT_TIME)
+        {
+            return (1.f - (((float)elapsed - (float)NOTIFY_FADE_IN_OUT_TIME - (float)_toast.dismissTime) / (float)NOTIFY_FADE_IN_OUT_TIME)) * NOTIFY_OPACITY;
+        }
+
+        return NOTIFY_OPACITY;
     }
 
 public:
@@ -240,22 +202,15 @@ inline void InsertNotification(Toast const& toast)
 }
 
 /**
- * @brief Removes a notification from the list of notifications.
- *
- * @param index The index of the notification to remove.
- */
-inline void RemoveNotification(int index)
-{
-    notifications.erase(notifications.begin() + index);
-}
-
-/**
  * Renders all notifications in the notifications vector.
  * Each notification is rendered as a toast window with a title, content and an optional icon.
  * If a notification is expired, it is removed from the vector.
  */
 inline void RenderNotifications()
 {
+    std::erase_if(notifications, [](ToastImpl const& toast) { // TODO(Toast) include the header of erase_if
+        return toast.has_expired();
+    });
     const ImVec2 mainWindowSize = GetMainViewport()->Size;
 
     float height = 0.f;
@@ -266,13 +221,6 @@ inline void RenderNotifications()
 
         // Init creation time the first time a toast is shown, because NOTIFY_RENDER_LIMIT might prevent it from showing for a while, and we don't want it to disappear immediately after appearing
         currentToast.init_creation_time_ifn();
-
-        // Remove toast if expired
-        if (currentToast.getPhase() == ToastPhase::Expired)
-        {
-            RemoveNotification(i);
-            continue;
-        }
 
         // Get icon, title and other data
         const char* icon         = currentToast.getIcon();
@@ -357,33 +305,6 @@ inline void RenderNotifications()
 
                 Text("%s", defaultTitle); // Render default title text (ImGuiToastType_Success -> "Success", etc...)
                 wasTitleRendered = true;
-            }
-
-            // If a dismiss button is enabled
-            if (NOTIFY_USE_DISMISS_BUTTON)
-            {
-                // If a title or content is set, we want to render the button on the same line
-                if (wasTitleRendered || !NOTIFY_NULL_OR_EMPTY(content))
-                {
-                    SameLine();
-                }
-
-                // Render the dismiss button on the top right corner
-                // NEEDS TO BE REWORKED
-                float scale = 0.8f;
-
-                if (CalcTextSize(content).x > GetContentRegionAvail().x)
-                {
-                    scale = 0.8f;
-                }
-
-                SetCursorPosX(GetCursorPosX() + (GetWindowSize().x - GetCursorPosX()) * scale);
-
-                // If the button is pressed, we want to remove the notification
-                if (Button(ICON_FA_XMARK))
-                {
-                    RemoveNotification(i);
-                }
             }
 
             // In case ANYTHING was rendered in the top, we want to add a small padding so the text (or icon) looks centered vertically
