@@ -12,6 +12,7 @@
 #pragma once
 #include <chrono>     // For the notifications timed dissmiss
 #include <functional> // For storing the code, which executest on the button click in the notification
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector> // Vector for storing notifications list
@@ -25,15 +26,15 @@ namespace ImGui {
  * CONFIGURATION SECTION Start
  */
 
-#define NOTIFY_PADDING_X          20.f  // Bottom-left X padding
-#define NOTIFY_PADDING_Y          20.f  // Bottom-left Y padding
-#define NOTIFY_PADDING_MESSAGE_Y  10.f  // Padding Y between each message
-#define NOTIFY_FADE_IN_OUT_TIME   150   // Fade in and out duration
-#define NOTIFY_DEFAULT_DISMISS    3000  // Auto dismiss after X ms (default, applied only of no data provided in constructors)
-#define NOTIFY_OPACITY            0.8f  // 0-1 Toast opacity
-#define NOTIFY_USE_SEPARATOR      false // If true, a separator will be rendered between the title and the content
-#define NOTIFY_USE_DISMISS_BUTTON true  // If true, a dismiss button will be rendered in the top right corner of the toast
-#define NOTIFY_RENDER_LIMIT       5     // Max number of toasts rendered at the same time. Set to 0 for unlimited
+static constexpr float NOTIFY_PADDING_X         = 20.f; // Bottom-left X padding
+static constexpr float NOTIFY_PADDING_Y         = 20.f; // Bottom-left Y padding
+static constexpr float NOTIFY_PADDING_MESSAGE_Y = 10.f; // Padding Y between each message
+#define NOTIFY_FADE_IN_OUT_TIME   150                   // Fade in and out duration
+#define NOTIFY_DEFAULT_DISMISS    3000                  // Auto dismiss after X ms (default, applied only of no data provided in constructors)
+#define NOTIFY_OPACITY            0.8f                  // 0-1 Toast opacity
+#define NOTIFY_USE_SEPARATOR      false                 // If true, a separator will be rendered between the title and the content
+#define NOTIFY_USE_DISMISS_BUTTON true                  // If true, a dismiss button will be rendered in the top right corner of the toast
+static constexpr size_t NOTIFY_RENDER_LIMIT = 5;        // Max number of toasts rendered at the same time. Set to 0 for unlimited
 // Warning: Requires ImGui docking with multi-viewport enabled
 #define NOTIFY_RENDER_OUTSIDE_MAIN_WINDOW false // If true, the notifications will be rendered in the corner of the monitor, otherwise in the corner of the main window
 
@@ -159,7 +160,7 @@ public:
      */
     auto getElapsedTime() const -> std::chrono::nanoseconds
     {
-        return std::chrono::steady_clock::now() - _creationTime;
+        return std::chrono::steady_clock::now() - creation_time();
     }
 
     /**
@@ -214,9 +215,17 @@ public:
         return NOTIFY_OPACITY;
     }
 
+    auto creation_time() const -> std::chrono::steady_clock::time_point { return *_creationTime; }
+
+    void init_creation_time_ifn()
+    {
+        if (!_creationTime.has_value())
+            _creationTime.emplace(std::chrono::steady_clock::now());
+    }
+
 public:
-    Toast                                 _toast;
-    std::chrono::steady_clock::time_point _creationTime = std::chrono::steady_clock::now();
+    Toast                                                _toast;
+    std::optional<std::chrono::steady_clock::time_point> _creationTime{};
 };
 
 inline std::vector<ToastImpl> notifications;
@@ -251,9 +260,12 @@ inline void RenderNotifications()
 
     float height = 0.f;
 
-    for (size_t i = 0; i < notifications.size(); ++i)
+    for (size_t i = 0; i < std::min(notifications.size(), NOTIFY_RENDER_LIMIT); ++i)
     {
-        ToastImpl const& currentToast = notifications[i];
+        ToastImpl& currentToast = notifications[i];
+
+        // Init creation time the first time a toast is shown, because NOTIFY_RENDER_LIMIT might prevent it from showing for a while, and we don't want it to disappear immediately after appearing
+        currentToast.init_creation_time_ifn();
 
         // Remove toast if expired
         if (currentToast.getPhase() == ToastPhase::Expired)
@@ -261,13 +273,6 @@ inline void RenderNotifications()
             RemoveNotification(i);
             continue;
         }
-
-#if NOTIFY_RENDER_LIMIT > 0
-        if (i > NOTIFY_RENDER_LIMIT)
-        {
-            continue;
-        }
-#endif
 
         // Get icon, title and other data
         const char* icon         = currentToast.getIcon();
