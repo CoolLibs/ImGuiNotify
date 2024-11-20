@@ -1,80 +1,21 @@
-/**
- * @file ImGuiNotify.hpp
- * @brief A header-only library for creating toast notifications with ImGui.
- *
- * Based on imgui-notify by patrickcjk
- * https://github.com/patrickcjk/imgui-notify
- *
- * @version 0.0.3 by TyomaVader
- * @date 07.07.2024
- */
-
-#pragma once
-#include <chrono> // For the notifications timed dissmiss
+#include <ImGuiNotify/ImGuiNotify.hpp>
+#include <chrono>
 #include <cstdint>
-#include <functional> // For storing the code, which executest on the button click in the notification
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector> // Vector for storing notifications list
+#include <vector>
 #include "IconsFontAwesome6.h"
+#include "fa-solid-900.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 
-namespace ImGui {
-
-/**
- * CONFIGURATION SECTION Start
- */
-
-static constexpr float NOTIFY_PADDING_X         = 20.f;       // Bottom-left X padding
-static constexpr float NOTIFY_PADDING_Y         = 1.f * 20.f; // Bottom-left Y padding
-static constexpr float NOTIFY_PADDING_MESSAGE_Y = 1.f * 10.f; // Padding Y between each message
-static constexpr float NOTIFY_MIN_WIDTH         = 200.f;
-#define NOTIFY_FADE_IN_OUT_TIME 200             // Fade in and out duration
-#define NOTIFY_DEFAULT_DISMISS  5000            // Auto dismiss after X ms (default, applied only of no data provided in constructors)
-#define NOTIFY_OPACITY          1.f             // 0-1 Toast opacity
-#define NOTIFY_USE_SEPARATOR    false           // If true, a separator will be rendered between the title and the content
-static constexpr size_t NOTIFY_RENDER_LIMIT{5}; // Max number of toasts rendered at the same time. Set to 0 for unlimited
-// Warning: Requires ImGui docking with multi-viewport enabled
-#define NOTIFY_RENDER_OUTSIDE_MAIN_WINDOW false // If true, the notifications will be rendered in the corner of the monitor, otherwise in the corner of the main window
-
-/**
- * CONFIGURATION SECTION End
- */
-
-static const ImGuiWindowFlags NOTIFY_DEFAULT_TOAST_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
+namespace ImGui::Notify {
 
 #define NOTIFY_NULL_OR_EMPTY(str) (!str || !strlen(str))
 
-enum class ToastType : uint8_t {
-    None,
-    Success,
-    Warning,
-    Error,
-    Info,
-};
-
-enum class ToastPos : uint8_t {
-    TopLeft,
-    TopCenter,
-    TopRight,
-    BottomLeft,
-    BottomCenter,
-    BottomRight,
-    Center,
-};
-
-struct Toast {
-    ImGuiWindowFlags flags = NOTIFY_DEFAULT_TOAST_FLAGS;
-
-    ToastType   type{ToastType::None};
-    std::string title{""};
-    std::string content{""};
-
-    int                   dismissTime{NOTIFY_DEFAULT_DISMISS};
-    std::function<void()> custom_imgui_content{}; // The lambda must capture everything by copy, it will be stored
-};
+static const ImGuiWindowFlags NOTIFY_DEFAULT_TOAST_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
 
 class ToastImpl {
 public:
@@ -105,6 +46,8 @@ public:
 
     auto getColor() const -> ImVec4
     {
+        // TODO(Toast) use nicer colors
+
         switch (_toast.type)
         {
         case ToastType::None:
@@ -198,25 +141,17 @@ public:
     float                                                _window_height{};
     inline static uint64_t                               next_id{0};
     std::string                                          _uniqueId{std::to_string(next_id++)};
+    ImGuiWindowFlags                                     _flags = NOTIFY_DEFAULT_TOAST_FLAGS;
 };
 
 inline std::vector<ToastImpl> notifications;
 
-/**
- * Inserts a new notification into the notification queue.
- * @param toast The notification to be inserted.
- */
-inline void InsertNotification(Toast const& toast)
+void add(Toast toast)
 {
-    notifications.push_back(ToastImpl{toast});
+    notifications.push_back(ToastImpl{std::move(toast)});
 }
 
-/**
- * Renders all notifications in the notifications vector.
- * Each notification is rendered as a toast window with a title, content and an optional icon.
- * If a notification is expired, it is removed from the vector.
- */
-inline void RenderNotifications()
+void render()
 {
     std::erase_if(notifications, [](ToastImpl const& toast) { // TODO(Toast) include the header of erase_if
         return toast.has_expired();
@@ -276,7 +211,7 @@ inline void RenderNotifications()
         ImGui::PushStyleColor(ImGuiCol_Border, textColor); // Red color
         // textColor.w = opacity;
 
-        Begin(windowName.c_str(), nullptr, currentToast._toast.flags);
+        Begin(windowName.c_str(), nullptr, currentToast._flags);
 
         ImGui::Dummy({NOTIFY_MIN_WIDTH, 0.f});
 
@@ -354,4 +289,15 @@ inline void RenderNotifications()
         ImGui::PopStyleVar();
     }
 }
-} // namespace ImGui
+
+void add_icons_to_current_font(float icons_size)
+{
+    static constexpr ImWchar iconsRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA, 0};
+    ImFontConfig             iconsConfig;
+    iconsConfig.MergeMode        = true;
+    iconsConfig.PixelSnapH       = true;
+    iconsConfig.GlyphMinAdvanceX = icons_size;
+    ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data, fa_solid_900_compressed_size, icons_size, &iconsConfig, iconsRanges);
+}
+
+} // namespace ImGui::Notify
