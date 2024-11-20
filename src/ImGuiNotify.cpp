@@ -185,7 +185,7 @@ void render_windows()
         const char* title        = currentToast._toast.title.c_str();
         const char* content      = currentToast._toast.content.c_str();
         const char* defaultTitle = currentToast.getDefaultTitle().data();
-        const float opacity      = std::clamp(currentToast.getFadePercent(), 0.00000001f, 0.9999999f);
+        const float opacity      = currentToast.getFadePercent();
 
         // Generate new unique name for this toast
         auto windowName = "##TOAST" + currentToast._uniqueId;
@@ -193,8 +193,12 @@ void render_windows()
         // Set notification window position to bottom right corner of the main window, considering the main window size and location in relation to the display
         ImVec2 mainWindowPos = GetMainViewport()->Pos;
         SetNextWindowPos(ImVec2(mainWindowPos.x + mainWindowSize.x - NOTIFY_PADDING_X, mainWindowPos.y + mainWindowSize.y - NOTIFY_PADDING_Y - height), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
-        ImGui::SetNextWindowSize({0.f, std::max(100.f * opacity, 0.0000001f)}); // Must not set height to exactly 0, otherwise imgui interprets it as "autofit the height"
-
+        ImGui::SetNextWindowSizeConstraints(
+            {NOTIFY_MIN_WIDTH, 0.f}, {FLT_MAX, FLT_MAX}, [](ImGuiSizeCallbackData* data) {
+                data->DesiredSize = {data->DesiredSize.x, data->DesiredSize.y * (*(float*)data->UserData)};
+            },
+            (void*)&opacity
+        );
         // Set notification window flags
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 5.f);
         ImVec4 textColor = currentToast.getColor();
@@ -202,8 +206,6 @@ void render_windows()
         // textColor.w = opacity;
 
         Begin(windowName.c_str(), nullptr, currentToast._flags);
-
-        ImGui::Dummy({NOTIFY_MIN_WIDTH, 0.f});
 
         // Render over all other windows
         BringWindowToDisplayFront(GetCurrentWindow());
