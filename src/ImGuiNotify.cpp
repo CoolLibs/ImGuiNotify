@@ -14,6 +14,14 @@
 
 namespace ImGui::Notify {
 
+static constexpr float NOTIFY_PADDING_X         = 20.f;       // Bottom-left X padding
+static constexpr float NOTIFY_PADDING_Y         = 1.f * 20.f; // Bottom-left Y padding
+static constexpr float NOTIFY_PADDING_MESSAGE_Y = 1.f * 10.f; // Padding Y between each message
+static constexpr float NOTIFY_MIN_WIDTH         = 200.f;
+#define NOTIFY_FADE_IN_OUT_TIME 200             // Fade in and out duration
+#define NOTIFY_USE_SEPARATOR    false           // If true, a separator will be rendered between the title and the content
+static constexpr size_t NOTIFY_RENDER_LIMIT{5}; // Max number of toasts rendered at the same time. Set to 0 for unlimited
+
 #define NOTIFY_NULL_OR_EMPTY(str) (!str || !strlen(str))
 
 static const ImGuiWindowFlags NOTIFY_DEFAULT_TOAST_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
