@@ -60,18 +60,18 @@ public:
         switch (_toast.type)
         {
         case ToastType::None:
-            return {255, 255, 255, 255}; // White
+            return {1.f, 1.f, 1.f, 1.f}; // White
         case ToastType::Success:
-            return {0, 255, 0, 255}; // Green
+            return style().green;
         case ToastType::Warning:
-            return {255, 255, 0, 255}; // Yellow
+            return style().yellow;
         case ToastType::Error:
-            return {255, 0, 0, 255}; // Red
+            return style().red;
         case ToastType::Info:
-            return {0, 157, 255, 255}; // Blue
+            return style().blue;
         default:
             assert(false);
-            return {255, 255, 255, 255}; // White
+            return {1.f, 1.f, 1.f, 1.f}; // White
         }
     }
 
