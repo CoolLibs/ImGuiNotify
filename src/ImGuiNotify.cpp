@@ -1,4 +1,5 @@
 #include <ImGuiNotify/ImGuiNotify.hpp>
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -123,16 +124,18 @@ public:
     {
         auto const elapsed = getElapsedTimeMS();
 
+        float opacity = 1.f;
+
         if (elapsed < NOTIFY_FADE_IN_OUT_TIME)
         {
-            return ((float)elapsed / (float)NOTIFY_FADE_IN_OUT_TIME) * NOTIFY_OPACITY;
+            opacity = (float)elapsed / (float)NOTIFY_FADE_IN_OUT_TIME;
         }
         else if (elapsed > _toast.dismissTime + NOTIFY_FADE_IN_OUT_TIME)
         {
-            return (1.f - (((float)elapsed - (float)NOTIFY_FADE_IN_OUT_TIME - (float)_toast.dismissTime) / (float)NOTIFY_FADE_IN_OUT_TIME)) * NOTIFY_OPACITY;
+            opacity = 1.f - (((float)elapsed - (float)NOTIFY_FADE_IN_OUT_TIME - (float)_toast.dismissTime) / (float)NOTIFY_FADE_IN_OUT_TIME);
         }
 
-        return NOTIFY_OPACITY;
+        return std::clamp(opacity, 0.f, 1.f);
     }
 
 public:
@@ -153,7 +156,7 @@ void add(Toast toast)
 
 void render()
 {
-    std::erase_if(notifications, [](ToastImpl const& toast) { // TODO(Toast) include the header of erase_if
+    std::erase_if(notifications, [](ToastImpl const& toast) {
         return toast.has_expired();
     });
     const ImVec2 mainWindowSize = GetMainViewport()->Size;
@@ -174,38 +177,17 @@ void render()
         const char* title        = currentToast._toast.title.c_str();
         const char* content      = currentToast._toast.content.c_str();
         const char* defaultTitle = currentToast.getDefaultTitle().data();
-        const float opacity      = currentToast.getFadePercent(); // Get opacity based of the current phase
-        // std::cout << opacity << '\n';
-
-        // ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity);
-        // Window rendering
+        const float opacity      = std::clamp(currentToast.getFadePercent(), 0.00000001f, 0.9999999f);
 
         // Generate new unique name for this toast
         auto windowName = "##TOAST" + currentToast._uniqueId;
 
-        // PushStyleColor(ImGuiCol_Text, textColor);
-        // SetNextWindowBgAlpha(opacity);
-
-#if NOTIFY_RENDER_OUTSIDE_MAIN_WINDOW
-        short mainMonitorId = static_cast<ImGuiViewportP*>(GetMainViewport())->PlatformMonitor;
-
-        ImGuiPlatformIO&      platformIO = GetPlatformIO();
-        ImGuiPlatformMonitor& monitor    = platformIO.Monitors[mainMonitorId];
-
-        // Set notification window position to bottom right corner of the monitor
-        SetNextWindowPos(ImVec2(monitor.WorkPos.x + monitor.WorkSize.x - NOTIFY_PADDING_X, monitor.WorkPos.y + monitor.WorkSize.y - NOTIFY_PADDING_Y - height), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
-#else
         // Set notification window position to bottom right corner of the main window, considering the main window size and location in relation to the display
         ImVec2 mainWindowPos = GetMainViewport()->Pos;
         SetNextWindowPos(ImVec2(mainWindowPos.x + mainWindowSize.x - NOTIFY_PADDING_X, mainWindowPos.y + mainWindowSize.y - NOTIFY_PADDING_Y - height), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
-        ImGui::SetNextWindowSize({0.f, 100.f * opacity});
-#endif
+        ImGui::SetNextWindowSize({0.f, std::max(100.f * opacity, 0.0000001f)}); // Must not set height to exactly 0, otherwise imgui interprets it as "autofit the height"
 
         // Set notification window flags
-        // if (!NOTIFY_USE_DISMISS_BUTTON && currentToast._toast.onButtonPress == nullptr)
-        // {
-        //     currentToast.setWindowFlags(NOTIFY_DEFAULT_TOAST_FLAGS | ImGuiWindowFlags_NoInputs);
-        // }
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 5.f);
         ImVec4 textColor = currentToast.getColor();
         ImGui::PushStyleColor(ImGuiCol_Border, textColor); // Red color
@@ -281,7 +263,7 @@ void render()
 
         // Save height for next toasts
         currentToast._window_height = GetWindowHeight();
-        height += currentToast._window_height + NOTIFY_PADDING_MESSAGE_Y;
+        height += currentToast._window_height + NOTIFY_PADDING_MESSAGE_Y * opacity;
 
         // End
         End();
