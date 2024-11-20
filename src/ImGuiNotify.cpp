@@ -162,7 +162,7 @@ void add(Toast toast)
     notifications.push_back(ToastImpl{std::move(toast)});
 }
 
-void render()
+void render_windows()
 {
     std::erase_if(notifications, [](ToastImpl const& toast) {
         return toast.has_expired();

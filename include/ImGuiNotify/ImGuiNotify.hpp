@@ -24,7 +24,7 @@ struct Toast {
 
 void add(Toast);
 /// Must be called once per frame, during your normal imgui frame (before ImGuiRenderblahblah)
-void render();
+void render_windows();
 /// Must be called once when initializing imgui,
 void add_icons_to_current_font(float icons_size = 16.f);
 
