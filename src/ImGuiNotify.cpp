@@ -62,13 +62,13 @@ public:
         case ToastType::None:
             return {1.f, 1.f, 1.f, 1.f}; // White
         case ToastType::Success:
-            return style().green;
+            return style().success;
         case ToastType::Warning:
-            return style().yellow;
+            return style().warning;
         case ToastType::Error:
-            return style().red;
+            return style().error;
         case ToastType::Info:
-            return style().blue;
+            return style().info;
         default:
             assert(false);
             return {1.f, 1.f, 1.f, 1.f}; // White
