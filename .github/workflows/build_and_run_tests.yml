@@ -2,9 +2,9 @@ name: Build and run tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, Dev]
   pull_request:
-    branches: [main]
+    branches: [main, Dev]
 
 env:
   cmake_configure_args: -D WARNINGS_AS_ERRORS_FOR_IMGUI_NOTIFY=ON
