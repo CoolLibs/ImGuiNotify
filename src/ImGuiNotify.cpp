@@ -6,13 +6,12 @@
 #include "fa-solid-900.h"
 #include "imgui_internal.h"
 
-namespace ImGui::Notify {
+namespace ImGuiNotify {
 
 #define NOTIFY_NULL_OR_EMPTY(str) (!str || !strlen(str))
 
-static const ImGuiWindowFlags NOTIFY_DEFAULT_TOAST_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
-
-class ToastImpl {
+namespace {
+class NotificationImpl {
 public:
     auto getDefaultTitle() const -> std::string_view
     {
@@ -129,14 +128,18 @@ public:
     float                                                _window_height{};
     inline static uint64_t                               next_id{0};
     std::string                                          _uniqueId{std::to_string(next_id++)};
-    ImGuiWindowFlags                                     _flags = NOTIFY_DEFAULT_TOAST_FLAGS;
 };
+} // namespace
 
-inline std::vector<ToastImpl> notifications;
+static auto notifications() -> std::vector<NotificationImpl>&
+{
+    static auto instance = std::vector<NotificationImpl>{};
+    return instance;
+}
 
 void send(Notification notification)
 {
-    notifications.push_back(ToastImpl{std::move(notification)});
+    notifications().push_back(NotificationImpl{std::move(notification)});
 }
 
 static auto ImU32_from_ImVec4(ImVec4 color) -> ImU32
@@ -173,18 +176,16 @@ static void background(ImVec4 color, std::function<void()> const& widget)
 
 void render_windows()
 {
-    std::erase_if(notifications, [](ToastImpl const& toast) {
+    std::erase_if(notifications(), [](NotificationImpl const& toast) {
         return toast.has_expired();
     });
-    const ImVec2 mainWindowSize = GetMainViewport()->Size;
+    ImVec2 const mainWindowSize = ImGui::GetMainViewport()->Size;
 
     float height = 0.f;
-    // if (!notifications.empty() && notifications[0].is_fading_out())
-    //     height -= (1.f - notifications[0].getFadePercent()) * (notifications[0]._window_height + NOTIFY_PADDING_MESSAGE_Y);
 
-    for (size_t i = 0; i < std::min(notifications.size(), get_style().render_limit); ++i)
+    for (size_t i = 0; i < std::min(notifications().size(), get_style().render_limit); ++i)
     {
-        ToastImpl& currentToast = notifications[i];
+        NotificationImpl& currentToast = notifications()[i];
 
         // Init creation time the first time a toast is shown, because NOTIFY_RENDER_LIMIT might prevent it from showing for a while, and we don't want it to disappear immediately after appearing
         currentToast.init_creation_time_ifn();
@@ -200,8 +201,8 @@ void render_windows()
         auto windowName = "##TOAST" + currentToast._uniqueId;
 
         // Set notification window position to bottom right corner of the main window, considering the main window size and location in relation to the display
-        ImVec2 mainWindowPos = GetMainViewport()->Pos;
-        SetNextWindowPos(ImVec2(mainWindowPos.x + mainWindowSize.x - get_style().padding_x, mainWindowPos.y + mainWindowSize.y - get_style().padding_y - height), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+        ImVec2 mainWindowPos = ImGui::GetMainViewport()->Pos;
+        ImGui::SetNextWindowPos(ImVec2(mainWindowPos.x + mainWindowSize.x - get_style().padding_x, mainWindowPos.y + mainWindowSize.y - get_style().padding_y - height), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
         ImGui::SetNextWindowSizeConstraints(
             {get_style().min_width, 0.f}, {FLT_MAX, FLT_MAX}, [](ImGuiSizeCallbackData* data) {
                 data->DesiredSize = {data->DesiredSize.x, data->DesiredSize.y * (*(float*)data->UserData)};
@@ -209,22 +210,22 @@ void render_windows()
             (void*)&opacity
         );
         // Set notification window flags
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 5.f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, get_style().border_width);
         ImVec4 textColor = currentToast.getColor();
         ImGui::PushStyleColor(ImGuiCol_Border, textColor); // Red color
-        // textColor.w = opacity;
+                                                           // textColor.w = opacity;
 
-        Begin(windowName.c_str(), nullptr, currentToast._flags);
+        ImGui::Begin(windowName.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
 
         // Render over all other windows
-        BringWindowToDisplayFront(GetCurrentWindow());
+        ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
 
         if (ImGui::IsWindowHovered())
             currentToast.reset_creation_time();
 
         // Here we render the toast content
         {
-            PushTextWrapPos(mainWindowSize.x / 3.f); // We want to support multi-line text, this will wrap the text after 1/3 of the screen width
+            ImGui::PushTextWrapPos(mainWindowSize.x / 3.f); // We want to support multi-line text, this will wrap the text after 1/3 of the screen width
 
             bool wasTitleRendered = false;
 
@@ -233,7 +234,7 @@ void render_windows()
                 if (!NOTIFY_NULL_OR_EMPTY(icon))
                 {
                     // Text(icon); // Render icon text
-                    TextColored(textColor, "%s", icon);
+                    ImGui::TextColored(textColor, "%s", icon);
                     wasTitleRendered = true;
                 }
 
@@ -242,17 +243,17 @@ void render_windows()
                 {
                     // If a title and an icon is set, we want to render on same line
                     if (!NOTIFY_NULL_OR_EMPTY(icon))
-                        SameLine();
+                        ImGui::SameLine();
 
-                    Text("%s", title); // Render title text
+                    ImGui::Text("%s", title); // Render title text
                     wasTitleRendered = true;
                 }
                 else if (!NOTIFY_NULL_OR_EMPTY(defaultTitle))
                 {
                     if (!NOTIFY_NULL_OR_EMPTY(icon))
-                        SameLine();
+                        ImGui::SameLine();
 
-                    Text("%s", defaultTitle);
+                    ImGui::Text("%s", defaultTitle);
                     wasTitleRendered = true;
                 }
             });
@@ -260,27 +261,27 @@ void render_windows()
             // In case ANYTHING was rendered in the top, we want to add a small padding so the text (or icon) looks centered vertically
             if (wasTitleRendered && (!NOTIFY_NULL_OR_EMPTY(content) || currentToast._toast.custom_imgui_content))
             {
-                SetCursorPosY(GetCursorPosY() + 5.f); // Must be a better way to do this!!!!
+                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f); // Must be a better way to do this!!!!
             }
 
             // If a content is set
             if (!NOTIFY_NULL_OR_EMPTY(content))
             {
-                Text("%s", content); // Render content text
+                ImGui::Text("%s", content); // Render content text
             }
 
             if (currentToast._toast.custom_imgui_content)
                 currentToast._toast.custom_imgui_content();
 
-            PopTextWrapPos();
+            ImGui::PopTextWrapPos();
         }
 
         // Save height for next toasts
-        currentToast._window_height = GetWindowHeight();
+        currentToast._window_height = ImGui::GetWindowHeight();
         height += currentToast._window_height + get_style().padding_between_notifications_y * opacity;
 
         // End
-        End();
+        ImGui::End();
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
     }
@@ -288,12 +289,12 @@ void render_windows()
 
 void add_icons_to_current_font(float icons_size)
 {
-    static constexpr ImWchar iconsRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA, 0};
-    ImFontConfig             iconsConfig;
+    static constexpr ImWchar iconsRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA, 0}; // NOLINT(*avoid-c-arrays)
+    ImFontConfig             iconsConfig{};
     iconsConfig.MergeMode        = true;
     iconsConfig.PixelSnapH       = true;
     iconsConfig.GlyphMinAdvanceX = icons_size;
     ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data, fa_solid_900_compressed_size, icons_size, &iconsConfig, iconsRanges);
 }
 
-} // namespace ImGui::Notify
+} // namespace ImGuiNotify
