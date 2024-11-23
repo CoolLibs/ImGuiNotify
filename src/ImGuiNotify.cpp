@@ -20,13 +20,13 @@ public:
         switch (_notification.type)
         {
         case Type::Success:
-            return get_style().success;
+            return get_style().color_success;
         case Type::Warning:
-            return get_style().warning;
+            return get_style().color_warning;
         case Type::Error:
-            return get_style().error;
+            return get_style().color_error;
         case Type::Info:
-            return get_style().info;
+            return get_style().color_info;
         default:
             assert(false);
             return {1.f, 1.f, 1.f, 1.f};
@@ -60,28 +60,17 @@ public:
     auto title() const -> std::string const& { return _notification.title; }
     auto unique_id() const -> std::string const& { return _unique_id; }
     auto has_been_init() const -> bool { return _creation_time.has_value(); }
+
     auto elapsed_time() const
     {
         assert(has_been_init());
         return std::chrono::steady_clock::now() - *_creation_time;
     }
+
     auto has_expired() const -> bool
     {
         return has_been_init()
                && elapsed_time() > _notification.duration + get_style().fade_in_duration + get_style().fade_out_duration;
-    }
-
-    void init_creation_time_ifn()
-    {
-        if (_creation_time.has_value())
-            return;
-        _creation_time.emplace(std::chrono::steady_clock::now());
-    }
-
-    void reset_creation_time()
-    {
-        if (elapsed_time() > get_style().fade_in_duration)
-            _creation_time.emplace(std::chrono::steady_clock::now() - get_style().fade_in_duration);
     }
 
     auto is_fading_out() const -> bool
@@ -89,7 +78,6 @@ public:
         return has_been_init()
                && elapsed_time() > _notification.duration + get_style().fade_in_duration;
     }
-
     auto fade_percent() const -> float
     {
         float const elapsed_ms  = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time()).count());
@@ -105,6 +93,19 @@ public:
             opacity = 1.f - (elapsed_ms - fade_in_ms - duration_ms) / fade_out_ms;
 
         return std::clamp(opacity, 0.f, 1.f);
+    }
+
+    void init_creation_time_ifn()
+    {
+        if (_creation_time.has_value())
+            return;
+        _creation_time.emplace(std::chrono::steady_clock::now());
+    }
+
+    void reset_creation_time()
+    {
+        if (elapsed_time() > get_style().fade_in_duration)
+            _creation_time.emplace(std::chrono::steady_clock::now() - get_style().fade_in_duration);
     }
 
 private:
@@ -161,8 +162,8 @@ static void background(ImVec4 color, std::function<void()> const& widget)
 
 void render_windows()
 {
-    std::erase_if(notifications(), [](NotificationImpl const& toast) {
-        return toast.has_expired();
+    std::erase_if(notifications(), [](NotificationImpl const& notification) {
+        return notification.has_expired();
     });
 
     float height = 0.f;
@@ -174,7 +175,7 @@ void render_windows()
 
         float const fade_percent = notif.fade_percent();
 
-        // Set notification window position to bottom right corner of the main window, considering the main window size and location in relation to the display
+        // Set window position and size
         ImVec2 const main_window_pos  = ImGui::GetMainViewport()->Pos;
         ImVec2 const main_window_size = ImGui::GetMainViewport()->Size;
         ImGui::SetNextWindowPos(
@@ -185,7 +186,10 @@ void render_windows()
             ImGuiCond_Always, ImVec2{1.f, 1.f}
         );
         ImGui::SetNextWindowSizeConstraints(
-            ImVec2{get_style().min_width, 0.f}, ImVec2{FLT_MAX, FLT_MAX}, [](ImGuiSizeCallbackData* data) {
+            ImVec2{get_style().min_width, 0.f}, // Min width
+            ImVec2{FLT_MAX, FLT_MAX},
+            [](ImGuiSizeCallbackData* data) {
+                // in / out transition by cropping the window size
                 float const fade_percent = *reinterpret_cast<float const*>(data->UserData); // NOLINT(*reinterpret-cast)
                 data->DesiredSize        = ImVec2{data->DesiredSize.x, data->DesiredSize.y * fade_percent};
             },
@@ -194,7 +198,7 @@ void render_windows()
 
         ImGui::PushStyleColor(ImGuiCol_Border, notif.color());
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, get_style().border_width);
-        ImGui::Begin(("##TOAST" + notif.unique_id()).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
+        ImGui::Begin(("##notification" + notif.unique_id()).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
 
         // Render over all other windows
         ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
@@ -208,24 +212,20 @@ void render_windows()
             ImGui::PushTextWrapPos(main_window_size.x / 3.f); // We want to support multi-line text, this will wrap the text after 1/3 of the screen width
 
             // Title
-            background(get_style().title_background, [&]() {
+            background(get_style().color_title_background, [&]() {
                 ImGui::TextColored(notif.color(), "%s", notif.icon());
                 ImGui::SameLine();
                 ImGui::TextUnformatted(notif.title().c_str());
             });
 
+            // Add a small padding after the title
+            ImGui::Dummy({0.f, 5.f});
+
             // Content
-            if (notif.has_content())
-            {
-                // Add a small padding after the title
-                ImGui::Dummy({0.f, 5.f});
-
-                if (!notif.content().empty())
-                    ImGui::TextUnformatted(notif.content().c_str());
-
-                if (notif.custom_imgui_content())
-                    notif.custom_imgui_content()();
-            }
+            if (!notif.content().empty())
+                ImGui::TextUnformatted(notif.content().c_str());
+            if (notif.custom_imgui_content())
+                notif.custom_imgui_content()();
 
             ImGui::PopTextWrapPos();
         }

@@ -30,11 +30,11 @@ void render_windows();
 void add_icons_to_current_font(float icons_size = 16.f);
 
 struct Style {
-    ImVec4 success{0.11f, 0.63f, 0.38f, 1.f};
-    ImVec4 warning{0.83f, 0.58f, 0.09f, 1.f};
-    ImVec4 error{0.75f, 0.25f, 0.36f, 1.f};
-    ImVec4 info{0.30f, 0.45f, 0.89f, 1.f};
-    ImVec4 title_background{0.3f, 0.3f, 0.3f, 0.5f};
+    ImVec4 color_success{0.11f, 0.63f, 0.38f, 1.f};
+    ImVec4 color_warning{0.83f, 0.58f, 0.09f, 1.f};
+    ImVec4 color_error{0.75f, 0.25f, 0.36f, 1.f};
+    ImVec4 color_info{0.30f, 0.45f, 0.89f, 1.f};
+    ImVec4 color_title_background{0.3f, 0.3f, 0.3f, 0.5f};
 
     float                     padding_x{20.f}; // Padding from the right of the window
     float                     padding_y{20.f}; // Padding from the bottom of the window
