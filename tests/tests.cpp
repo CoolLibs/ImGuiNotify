@@ -16,13 +16,37 @@ auto main(int argc, char* argv[]) -> int
         [&]() { // Loop
             ImGui::Begin("ImGuiNotify tests");
             if (ImGui::Button("Success"))
-                ImGuiNotify::send({.type = ImGuiNotify::Type::Success, .content = "Hello"});
+            {
+                ImGuiNotify::send({
+                    .type    = ImGuiNotify::Type::Success,
+                    .title   = "Success",
+                    .content = "Hello",
+                });
+            }
             if (ImGui::Button("Warning"))
-                ImGuiNotify::send({.type = ImGuiNotify::Type::Warning, .title = "Warning", .content = "Hello"});
+            {
+                ImGuiNotify::send({
+                    .type    = ImGuiNotify::Type::Warning,
+                    .title   = "Warning",
+                    .content = "This is a warning !",
+                });
+            }
             if (ImGui::Button("Error"))
-                ImGuiNotify::send({.type = ImGuiNotify::Type::Error, .content = "HelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHelloHello"});
+            {
+                ImGuiNotify::send({
+                    .type    = ImGuiNotify::Type::Error,
+                    .title   = "Something went wrong!",
+                    .content = "AAAaaAAAAaaAAAAAaaAAAAaaaaAaAAaaaaAaaaaaaAaaaaaaAaaaaaaaaAAAAAAAaaaaaaAAAAAAaaaaaaa",
+                });
+            }
             if (ImGui::Button("Info"))
-                ImGuiNotify::send({.type = ImGuiNotify::Type::Info, .content = "Hello"});
+            {
+                ImGuiNotify::send({
+                    .type    = ImGuiNotify::Type::Info,
+                    .title   = "Hi",
+                    .content = "Some info",
+                });
+            }
             ImGui::End();
 
             ImGuiNotify::render_windows();
