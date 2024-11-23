@@ -31,3 +31,6 @@ if(WARNINGS_AS_ERRORS_FOR_IMGUI_NOTIFY)
         target_compile_options(ImGuiNotify PRIVATE -Werror)
     endif()
 endif()
+
+# ---Install license---
+install(FILES "LICENSE" DESTINATION "license/ImGuiNotify")

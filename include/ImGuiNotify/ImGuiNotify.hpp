@@ -33,6 +33,7 @@ struct Style {
     ImVec4 warning{0.83f, 0.58f, 0.09f, 1.f};
     ImVec4 error{0.75f, 0.25f, 0.36f, 1.f};
     ImVec4 info{0.3019607961177826f, 0.4470588266849518f, 1.8901960849761963f, 1.f};
+    ImVec4 title_background{0.3f, 0.3f, 0.3f, 0.5f};
 };
 
 inline auto style() -> Style&

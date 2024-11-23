@@ -17,9 +17,8 @@ namespace ImGui::Notify {
 static constexpr float NOTIFY_PADDING_X         = 20.f;       // Bottom-left X padding
 static constexpr float NOTIFY_PADDING_Y         = 1.f * 20.f; // Bottom-left Y padding
 static constexpr float NOTIFY_PADDING_MESSAGE_Y = 1.f * 10.f; // Padding Y between each message
-static constexpr float NOTIFY_MIN_WIDTH         = 200.f;
+static constexpr float NOTIFY_MIN_WIDTH         = 275.f;
 #define NOTIFY_FADE_IN_OUT_TIME 200             // Fade in and out duration
-#define NOTIFY_USE_SEPARATOR    false           // If true, a separator will be rendered between the title and the content
 static constexpr size_t NOTIFY_RENDER_LIMIT{5}; // Max number of toasts rendered at the same time. Set to 0 for unlimited
 
 #define NOTIFY_NULL_OR_EMPTY(str) (!str || !strlen(str))
@@ -162,6 +161,38 @@ void add(Toast toast)
     notifications.push_back(ToastImpl{std::move(toast)});
 }
 
+static auto ImU32_from_ImVec4(ImVec4 color) -> ImU32
+{
+    return ImGui::GetColorU32(IM_COL32(
+        color.x * 255.f,
+        color.y * 255.f,
+        color.z * 255.f,
+        color.w * 255.f
+    ));
+}
+
+static void background(ImVec4 color, std::function<void()> const& widget)
+{
+    ImDrawList& draw_list = *ImGui::GetWindowDrawList();
+    draw_list.ChannelsSplit(2);                                     // Allows us to draw the background rectangle behind the widget,
+    draw_list.ChannelsSetCurrent(1);                                // even though the widget is drawn first.
+    ImVec2 const rectangle_start_pos = ImGui::GetCursorScreenPos(); // We must draw them in that order because we need to know the height of the widget before drawing the rectangle.
+
+    widget();
+
+    auto const rectangle_end_pos = ImVec2{
+        rectangle_start_pos.x + ImGui::GetContentRegionAvail().x,
+        ImGui::GetCursorScreenPos().y
+    };
+    draw_list.ChannelsSetCurrent(0);
+    draw_list.AddRectFilled(
+        rectangle_start_pos,
+        rectangle_end_pos,
+        ImU32_from_ImVec4(color)
+    );
+    draw_list.ChannelsMerge();
+}
+
 void render_windows()
 {
     std::erase_if(notifications, [](ToastImpl const& toast) {
@@ -219,35 +250,37 @@ void render_windows()
 
             bool wasTitleRendered = false;
 
-            // If an icon is set
-            if (!NOTIFY_NULL_OR_EMPTY(icon))
-            {
-                // Text(icon); // Render icon text
-                TextColored(textColor, "%s", icon);
-                wasTitleRendered = true;
-            }
-
-            // If a title is set
-            if (!NOTIFY_NULL_OR_EMPTY(title))
-            {
-                // If a title and an icon is set, we want to render on same line
+            background(style().title_background, [&]() {
+                // If an icon is set
                 if (!NOTIFY_NULL_OR_EMPTY(icon))
-                    SameLine();
+                {
+                    // Text(icon); // Render icon text
+                    TextColored(textColor, "%s", icon);
+                    wasTitleRendered = true;
+                }
 
-                Text("%s", title); // Render title text
-                wasTitleRendered = true;
-            }
-            else if (!NOTIFY_NULL_OR_EMPTY(defaultTitle))
-            {
-                if (!NOTIFY_NULL_OR_EMPTY(icon))
-                    SameLine();
+                // If a title is set
+                if (!NOTIFY_NULL_OR_EMPTY(title))
+                {
+                    // If a title and an icon is set, we want to render on same line
+                    if (!NOTIFY_NULL_OR_EMPTY(icon))
+                        SameLine();
 
-                Text("%s", defaultTitle); // Render default title text (ImGuiToastType_Success -> "Success", etc...)
-                wasTitleRendered = true;
-            }
+                    Text("%s", title); // Render title text
+                    wasTitleRendered = true;
+                }
+                else if (!NOTIFY_NULL_OR_EMPTY(defaultTitle))
+                {
+                    if (!NOTIFY_NULL_OR_EMPTY(icon))
+                        SameLine();
+
+                    Text("%s", defaultTitle); // Render default title text (ImGuiToastType_Success -> "Success", etc...)
+                    wasTitleRendered = true;
+                }
+            });
 
             // In case ANYTHING was rendered in the top, we want to add a small padding so the text (or icon) looks centered vertically
-            if (wasTitleRendered && !NOTIFY_NULL_OR_EMPTY(content))
+            if (wasTitleRendered && (!NOTIFY_NULL_OR_EMPTY(content) || currentToast._toast.custom_imgui_content))
             {
                 SetCursorPosY(GetCursorPosY() + 5.f); // Must be a better way to do this!!!!
             }
@@ -255,13 +288,6 @@ void render_windows()
             // If a content is set
             if (!NOTIFY_NULL_OR_EMPTY(content))
             {
-                if (wasTitleRendered)
-                {
-#if NOTIFY_USE_SEPARATOR
-                    Separator();
-#endif
-                }
-
                 Text("%s", content); // Render content text
             }
 
