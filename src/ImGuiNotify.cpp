@@ -1,25 +1,12 @@
-#include <ImGuiNotify/ImGuiNotify.hpp>
+#include "ImGuiNotify/ImGuiNotify.hpp"
 #include <algorithm>
-#include <chrono>
-#include <cstdint>
-#include <functional>
 #include <optional>
-#include <string>
-#include <string_view>
 #include <vector>
 #include "IconsFontAwesome6.h"
 #include "fa-solid-900.h"
-#include "imgui.h"
 #include "imgui_internal.h"
 
 namespace ImGui::Notify {
-
-static constexpr float                     NOTIFY_PADDING_X         = 20.f;       // Bottom-left X padding
-static constexpr float                     NOTIFY_PADDING_Y         = 1.f * 20.f; // Bottom-left Y padding
-static constexpr float                     NOTIFY_PADDING_MESSAGE_Y = 1.f * 10.f; // Padding Y between each message
-static constexpr float                     NOTIFY_MIN_WIDTH         = 275.f;
-static constexpr std::chrono::milliseconds NOTIFY_FADE_IN_OUT_TIME  = 200ms;
-static constexpr size_t                    NOTIFY_RENDER_LIMIT{5}; // Max number of toasts rendered at the same time. Set to 0 for unlimited
 
 #define NOTIFY_NULL_OR_EMPTY(str) (!str || !strlen(str))
 
@@ -97,7 +84,8 @@ public:
     }
     auto has_expired() const -> bool
     {
-        return has_been_init() && getElapsedTime() > _toast.duration + 2 * NOTIFY_FADE_IN_OUT_TIME;
+        return has_been_init()
+               && getElapsedTime() > _toast.duration + get_style().fade_in_duration + get_style().fade_out_duration;
     }
 
     void init_creation_time_ifn()
@@ -109,26 +97,28 @@ public:
 
     void reset_creation_time()
     {
-        _creationTime.emplace(std::chrono::steady_clock::now() - std::chrono::milliseconds{NOTIFY_FADE_IN_OUT_TIME});
+        if (getElapsedTime() > get_style().fade_in_duration)
+            _creationTime.emplace(std::chrono::steady_clock::now() - get_style().fade_in_duration);
     }
 
     auto is_fading_out() const -> bool
     {
-        return has_been_init() && getElapsedTime() > _toast.duration + NOTIFY_FADE_IN_OUT_TIME;
+        return has_been_init() && getElapsedTime() > _toast.duration + get_style().fade_in_duration;
     }
 
     auto getFadePercent() const -> float
     {
         float const elapsed_ms  = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(getElapsedTime()).count());
-        float const fade_ms     = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(NOTIFY_FADE_IN_OUT_TIME).count());
+        float const fade_in_ms  = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().fade_in_duration).count());
+        float const fade_out_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().fade_out_duration).count());
         float const duration_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(_toast.duration).count());
 
         float opacity = 1.f;
 
-        if (elapsed_ms < fade_ms)
-            opacity = elapsed_ms / fade_ms;
-        else if (elapsed_ms > duration_ms + fade_ms)
-            opacity = 1.f - (elapsed_ms - fade_ms - duration_ms) / fade_ms;
+        if (elapsed_ms < fade_in_ms)
+            opacity = elapsed_ms / fade_in_ms;
+        else if (elapsed_ms > duration_ms + fade_in_ms)
+            opacity = 1.f - (elapsed_ms - fade_in_ms - duration_ms) / fade_out_ms;
 
         return std::clamp(opacity, 0.f, 1.f);
     }
@@ -192,7 +182,7 @@ void render_windows()
     // if (!notifications.empty() && notifications[0].is_fading_out())
     //     height -= (1.f - notifications[0].getFadePercent()) * (notifications[0]._window_height + NOTIFY_PADDING_MESSAGE_Y);
 
-    for (size_t i = 0; i < std::min(notifications.size(), NOTIFY_RENDER_LIMIT); ++i)
+    for (size_t i = 0; i < std::min(notifications.size(), get_style().render_limit); ++i)
     {
         ToastImpl& currentToast = notifications[i];
 
@@ -211,9 +201,9 @@ void render_windows()
 
         // Set notification window position to bottom right corner of the main window, considering the main window size and location in relation to the display
         ImVec2 mainWindowPos = GetMainViewport()->Pos;
-        SetNextWindowPos(ImVec2(mainWindowPos.x + mainWindowSize.x - NOTIFY_PADDING_X, mainWindowPos.y + mainWindowSize.y - NOTIFY_PADDING_Y - height), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+        SetNextWindowPos(ImVec2(mainWindowPos.x + mainWindowSize.x - get_style().padding_x, mainWindowPos.y + mainWindowSize.y - get_style().padding_y - height), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
         ImGui::SetNextWindowSizeConstraints(
-            {NOTIFY_MIN_WIDTH, 0.f}, {FLT_MAX, FLT_MAX}, [](ImGuiSizeCallbackData* data) {
+            {get_style().min_width, 0.f}, {FLT_MAX, FLT_MAX}, [](ImGuiSizeCallbackData* data) {
                 data->DesiredSize = {data->DesiredSize.x, data->DesiredSize.y * (*(float*)data->UserData)};
             },
             (void*)&opacity
@@ -287,7 +277,7 @@ void render_windows()
 
         // Save height for next toasts
         currentToast._window_height = GetWindowHeight();
-        height += currentToast._window_height + NOTIFY_PADDING_MESSAGE_Y * opacity;
+        height += currentToast._window_height + get_style().padding_between_notifications_y * opacity;
 
         // End
         End();
