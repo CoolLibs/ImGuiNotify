@@ -4,9 +4,9 @@
 #include <string>
 #include "imgui.h"
 
-namespace ImGuiNotify {
+using namespace std::literals; // To write chrono values as 5s instead of std::chrono::seconds{5} // NOLINT(*global-names-in-headers)
 
-using namespace std::literals; // To write chrono values as 5s instead of std::chrono::seconds{5}
+namespace ImGuiNotify {
 
 enum class Type {
     Success,
