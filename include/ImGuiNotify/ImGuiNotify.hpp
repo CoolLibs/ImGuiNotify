@@ -27,7 +27,9 @@ void send(Notification);
 /// Must be called once per frame, during your normal imgui frame (before ImGui::Render())
 void render_windows();
 /// Must be called once when initializing imgui (if you use a custom font, call it just after adding that font)
-void add_icons_to_current_font(float icons_size = 16.f);
+/// If you don't use custom fonts, you must call ImGui::GetIO().Fonts->AddFontDefault() before calling ImGuiNotify::add_icons_to_current_font()
+/// NB: you might have to tweak glyph_offset if the icons don't properly align with your custom font
+void add_icons_to_current_font(float icons_size = 16.f, ImVec2 glyph_offset = {0.f, +4.f});
 
 struct Style {
     ImVec4 color_success{0.11f, 0.63f, 0.38f, 1.f};

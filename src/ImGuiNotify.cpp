@@ -240,13 +240,14 @@ void render_windows()
     }
 }
 
-void add_icons_to_current_font(float icons_size)
+void add_icons_to_current_font(float icons_size, ImVec2 glyph_offset)
 {
     static constexpr ImWchar iconsRanges[] = {ICON_MIN_FA, ICON_MAX_16_FA, 0}; // NOLINT(*avoid-c-arrays)
     ImFontConfig             iconsConfig{};
-    iconsConfig.MergeMode        = true;
-    iconsConfig.PixelSnapH       = true;
-    iconsConfig.GlyphMinAdvanceX = icons_size;
+    iconsConfig.MergeMode   = true;
+    iconsConfig.PixelSnapH  = true;
+    iconsConfig.GlyphOffset = glyph_offset;
+    // iconsConfig.GlyphMinAdvanceX = icons_size; // Use if you want to make the icons monospaced
     ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(fa_solid_900_compressed_data, fa_solid_900_compressed_size, icons_size, &iconsConfig, iconsRanges);
 }
 
