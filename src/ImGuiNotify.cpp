@@ -1,8 +1,11 @@
-#include "ImGuiNotify/ImGuiNotify.hpp"
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include <imgui.h>
+//
 #include <algorithm>
 #include <optional>
 #include <vector>
 #include "IconsFontAwesome6.h"
+#include "ImGuiNotify/ImGuiNotify.hpp"
 #include "fa-solid-900.h"
 #include "imgui_internal.h"
 
@@ -153,8 +156,8 @@ static void background(ImVec4 color, std::function<void()> const& widget)
     };
     draw_list.ChannelsSetCurrent(0);
     draw_list.AddRectFilled(
-        rectangle_start_pos,
-        rectangle_end_pos,
+        rectangle_start_pos - ImGui::GetStyle().WindowPadding,
+        rectangle_end_pos + ImVec2{ImGui::GetStyle().WindowPadding.x, 0.f},
         ImU32_from_ImVec4(color)
     );
     draw_list.ChannelsMerge();
@@ -218,14 +221,17 @@ void render_windows()
                 ImGui::TextUnformatted(notif.title().c_str());
             });
 
-            // Add a small padding after the title
-            ImGui::Dummy({0.f, 5.f});
-
             // Content
-            if (!notif.content().empty())
-                ImGui::TextUnformatted(notif.content().c_str());
-            if (notif.custom_imgui_content())
-                notif.custom_imgui_content()();
+            if (notif.has_content())
+            {
+                // Add a small padding after the title
+                ImGui::Dummy({0.f, 5.f});
+
+                if (!notif.content().empty())
+                    ImGui::TextUnformatted(notif.content().c_str());
+                if (notif.custom_imgui_content())
+                    notif.custom_imgui_content()();
+            }
 
             ImGui::PopTextWrapPos();
         }
