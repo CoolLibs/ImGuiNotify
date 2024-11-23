@@ -8,9 +8,9 @@ target_compile_features(ImGuiNotify PUBLIC cxx_std_20)
 
 # ---Add source files---
 if(WARNINGS_AS_ERRORS_FOR_IMGUI_NOTIFY)
-    target_include_directories(ImGuiNotify PUBLIC include fonts)
+    target_include_directories(ImGuiNotify PUBLIC include font)
 else()
-    target_include_directories(ImGuiNotify SYSTEM PUBLIC include fonts)
+    target_include_directories(ImGuiNotify SYSTEM PUBLIC include font)
 endif()
 
 file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS src/*.cpp)
