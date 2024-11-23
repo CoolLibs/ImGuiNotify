@@ -34,15 +34,13 @@ public:
 
         switch (_toast.type)
         {
-        case ToastType::None:
-            return "";
-        case ToastType::Success:
+        case Type::Success:
             return "Success";
-        case ToastType::Warning:
+        case Type::Warning:
             return "Warning";
-        case ToastType::Error:
+        case Type::Error:
             return "Error";
-        case ToastType::Info:
+        case Type::Info:
             return "Info";
         default:
         {
@@ -54,23 +52,19 @@ public:
 
     auto getColor() const -> ImVec4
     {
-        // TODO(Toast) use nicer colors
-
         switch (_toast.type)
         {
-        case ToastType::None:
-            return {1.f, 1.f, 1.f, 1.f}; // White
-        case ToastType::Success:
-            return style().success;
-        case ToastType::Warning:
-            return style().warning;
-        case ToastType::Error:
-            return style().error;
-        case ToastType::Info:
-            return style().info;
+        case Type::Success:
+            return get_style().success;
+        case Type::Warning:
+            return get_style().warning;
+        case Type::Error:
+            return get_style().error;
+        case Type::Info:
+            return get_style().info;
         default:
             assert(false);
-            return {1.f, 1.f, 1.f, 1.f}; // White
+            return {1.f, 1.f, 1.f, 1.f};
         }
     }
 
@@ -78,15 +72,13 @@ public:
     {
         switch (_toast.type)
         {
-        case ToastType::None:
-            return nullptr;
-        case ToastType::Success:
+        case Type::Success:
             return ICON_FA_CIRCLE_CHECK; // Font Awesome 6
-        case ToastType::Warning:
+        case Type::Warning:
             return ICON_FA_TRIANGLE_EXCLAMATION; // Font Awesome 6
-        case ToastType::Error:
+        case Type::Error:
             return ICON_FA_CIRCLE_EXCLAMATION; // Font Awesome 6
-        case ToastType::Info:
+        case Type::Info:
             return ICON_FA_CIRCLE_INFO; // Font Awesome 6
         default:
             assert(false);
@@ -146,7 +138,7 @@ public:
     }
 
 public:
-    Toast                                                _toast;
+    Notification                                         _toast;
     std::optional<std::chrono::steady_clock::time_point> _creationTime{};
     float                                                _window_height{};
     inline static uint64_t                               next_id{0};
@@ -156,9 +148,9 @@ public:
 
 inline std::vector<ToastImpl> notifications;
 
-void add(Toast toast)
+void send(Notification notification)
 {
-    notifications.push_back(ToastImpl{std::move(toast)});
+    notifications.push_back(ToastImpl{std::move(notification)});
 }
 
 static auto ImU32_from_ImVec4(ImVec4 color) -> ImU32
@@ -250,7 +242,7 @@ void render_windows()
 
             bool wasTitleRendered = false;
 
-            background(style().title_background, [&]() {
+            background(get_style().title_background, [&]() {
                 // If an icon is set
                 if (!NOTIFY_NULL_OR_EMPTY(icon))
                 {
@@ -274,7 +266,7 @@ void render_windows()
                     if (!NOTIFY_NULL_OR_EMPTY(icon))
                         SameLine();
 
-                    Text("%s", defaultTitle); // Render default title text (ImGuiToastType_Success -> "Success", etc...)
+                    Text("%s", defaultTitle);
                     wasTitleRendered = true;
                 }
             });
