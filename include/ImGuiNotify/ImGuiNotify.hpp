@@ -1,9 +1,12 @@
 #pragma once
+#include <chrono>
 #include <functional>
 #include <string>
 #include "imgui.h"
 
 namespace ImGui::Notify {
+
+using namespace std::literals; // To write chrono values as 5s instead of std::chrono::seconds{5}
 
 enum class Type {
     Success,
@@ -13,11 +16,11 @@ enum class Type {
 };
 
 struct Notification {
-    Type                  type{Type::Info};
-    std::string           title{""};
-    std::string           content{""};
-    std::function<void()> custom_imgui_content{}; // ⚠ The lambda must capture everything by copy, it will be stored
-    int                   dismissTime{5000};
+    Type                      type{Type::Info};
+    std::string               title{""};
+    std::string               content{""};
+    std::function<void()>     custom_imgui_content{}; // ⚠ The lambda must capture everything by copy, it will be stored
+    std::chrono::milliseconds duration{5s};
 };
 
 void send(Notification);

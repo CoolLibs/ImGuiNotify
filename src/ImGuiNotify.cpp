@@ -14,12 +14,12 @@
 
 namespace ImGui::Notify {
 
-static constexpr float NOTIFY_PADDING_X         = 20.f;       // Bottom-left X padding
-static constexpr float NOTIFY_PADDING_Y         = 1.f * 20.f; // Bottom-left Y padding
-static constexpr float NOTIFY_PADDING_MESSAGE_Y = 1.f * 10.f; // Padding Y between each message
-static constexpr float NOTIFY_MIN_WIDTH         = 275.f;
-#define NOTIFY_FADE_IN_OUT_TIME 200             // Fade in and out duration
-static constexpr size_t NOTIFY_RENDER_LIMIT{5}; // Max number of toasts rendered at the same time. Set to 0 for unlimited
+static constexpr float                     NOTIFY_PADDING_X         = 20.f;       // Bottom-left X padding
+static constexpr float                     NOTIFY_PADDING_Y         = 1.f * 20.f; // Bottom-left Y padding
+static constexpr float                     NOTIFY_PADDING_MESSAGE_Y = 1.f * 10.f; // Padding Y between each message
+static constexpr float                     NOTIFY_MIN_WIDTH         = 275.f;
+static constexpr std::chrono::milliseconds NOTIFY_FADE_IN_OUT_TIME  = 200ms;
+static constexpr size_t                    NOTIFY_RENDER_LIMIT{5}; // Max number of toasts rendered at the same time. Set to 0 for unlimited
 
 #define NOTIFY_NULL_OR_EMPTY(str) (!str || !strlen(str))
 
@@ -86,9 +86,9 @@ public:
         }
     }
 
-    auto getElapsedTimeMS() const
+    auto getElapsedTime() const
     {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - creation_time()).count();
+        return std::chrono::steady_clock::now() - *_creationTime;
     }
 
     auto has_been_init() const -> bool
@@ -97,10 +97,8 @@ public:
     }
     auto has_expired() const -> bool
     {
-        return has_been_init() && getElapsedTimeMS() > _toast.dismissTime + 2 * NOTIFY_FADE_IN_OUT_TIME;
+        return has_been_init() && getElapsedTime() > _toast.duration + 2 * NOTIFY_FADE_IN_OUT_TIME;
     }
-
-    auto creation_time() const -> std::chrono::steady_clock::time_point { return *_creationTime; }
 
     void init_creation_time_ifn()
     {
@@ -116,23 +114,21 @@ public:
 
     auto is_fading_out() const -> bool
     {
-        return has_been_init() && getElapsedTimeMS() > _toast.dismissTime + NOTIFY_FADE_IN_OUT_TIME;
+        return has_been_init() && getElapsedTime() > _toast.duration + NOTIFY_FADE_IN_OUT_TIME;
     }
 
     auto getFadePercent() const -> float
     {
-        auto const elapsed = getElapsedTimeMS();
+        float const elapsed_ms  = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(getElapsedTime()).count());
+        float const fade_ms     = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(NOTIFY_FADE_IN_OUT_TIME).count());
+        float const duration_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(_toast.duration).count());
 
         float opacity = 1.f;
 
-        if (elapsed < NOTIFY_FADE_IN_OUT_TIME)
-        {
-            opacity = (float)elapsed / (float)NOTIFY_FADE_IN_OUT_TIME;
-        }
-        else if (elapsed > _toast.dismissTime + NOTIFY_FADE_IN_OUT_TIME)
-        {
-            opacity = 1.f - (((float)elapsed - (float)NOTIFY_FADE_IN_OUT_TIME - (float)_toast.dismissTime) / (float)NOTIFY_FADE_IN_OUT_TIME);
-        }
+        if (elapsed_ms < fade_ms)
+            opacity = elapsed_ms / fade_ms;
+        else if (elapsed_ms > duration_ms + fade_ms)
+            opacity = 1.f - (elapsed_ms - fade_ms - duration_ms) / fade_ms;
 
         return std::clamp(opacity, 0.f, 1.f);
     }
