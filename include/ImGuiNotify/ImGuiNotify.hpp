@@ -23,6 +23,7 @@ struct Notification {
     std::chrono::milliseconds duration{5s};
 };
 
+/// This is thread-safe and can be called from any thread
 void send(Notification);
 /// Must be called once per frame, during your normal imgui frame (before ImGui::Render())
 void render_windows();

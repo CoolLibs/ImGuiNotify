@@ -2,6 +2,7 @@
 #include <imgui.h>
 //
 #include <algorithm>
+#include <mutex>
 #include <optional>
 #include <vector>
 #include "IconsFontAwesome6.h"
@@ -125,9 +126,15 @@ static auto notifications() -> std::vector<NotificationImpl>&
     static auto instance = std::vector<NotificationImpl>{};
     return instance;
 }
+static auto notifications_mutex() -> std::mutex&
+{
+    static auto instance = std::mutex{};
+    return instance;
+}
 
 void send(Notification notification)
 {
+    auto lock = std::unique_lock{notifications_mutex()};
     notifications().emplace_back(std::move(notification));
 }
 
@@ -165,6 +172,8 @@ static void background(ImVec4 color, std::function<void()> const& widget)
 
 void render_windows()
 {
+    auto lock = std::unique_lock{notifications_mutex()};
+
     std::erase_if(notifications(), [](NotificationImpl const& notification) {
         return notification.has_expired();
     });
