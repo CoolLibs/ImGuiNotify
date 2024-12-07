@@ -41,7 +41,7 @@ struct Style {
     float                     padding_x{20.f}; // Padding from the right of the window
     float                     padding_y{20.f}; // Padding from the bottom of the window
     float                     padding_between_notifications_y{10.f};
-    float                     min_width{275.f};         // Forces notifications to have at least this width
+    float                     min_width{325.f};         // Forces notifications to have at least this width
     float                     border_width{5.f};        // Size of the border around the notifications
     std::chrono::milliseconds fade_in_duration{200ms};  // Duration of the transition when a notification appears
     std::chrono::milliseconds fade_out_duration{200ms}; // Duration of the transition when a notification disappears

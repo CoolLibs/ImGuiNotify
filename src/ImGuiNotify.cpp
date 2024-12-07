@@ -212,7 +212,7 @@ void render_windows()
 
         // Here we render the content
         {
-            ImGui::PushTextWrapPos(main_window_size.x / 3.f); // We want to support multi-line text, this will wrap the text after 1/3 of the screen width
+            ImGui::PushTextWrapPos(ImGui::GetWindowWidth()); // Support multi-line text
 
             // Title
             background(get_style().color_title_background, [&]() {
