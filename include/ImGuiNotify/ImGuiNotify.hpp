@@ -46,7 +46,6 @@ struct Style {
     float                     border_width{5.f};        // Size of the border around the notifications
     std::chrono::milliseconds fade_in_duration{200ms};  // Duration of the transition when a notification appears
     std::chrono::milliseconds fade_out_duration{200ms}; // Duration of the transition when a notification disappears
-    size_t                    render_limit{5};          // Max number of notifications rendered at the same time
 };
 
 inline auto get_style() -> Style&

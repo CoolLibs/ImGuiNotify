@@ -179,17 +179,20 @@ void render_windows()
     });
 
     float height = 0.f;
-    for (size_t i = 0; i < std::min(notifications().size(), get_style().render_limit); ++i)
+    for (size_t i = 0; i < notifications().size(); ++i)
     {
-        auto& notif = notifications()[i];
+        ImVec2 const main_window_pos  = ImGui::GetMainViewport()->Pos;
+        ImVec2 const main_window_size = ImGui::GetMainViewport()->Size;
 
-        notif.init_creation_time_ifn(); // Init creation time the first time a notification is shown, because get_style().render_limit might prevent it from showing for a while, and we don't want it to disappear immediately after appearing
+        if (height > main_window_size.y - 100.f)
+            break;
+
+        auto& notif = notifications()[i];
+        notif.init_creation_time_ifn(); // Init creation time the first time a notification is shown, because if they are outside the window they might prevent it from showing for a while, and we don't want it to disappear immediately after appearing
 
         float const fade_percent = notif.fade_percent();
 
         // Set window position and size
-        ImVec2 const main_window_pos  = ImGui::GetMainViewport()->Pos;
-        ImVec2 const main_window_size = ImGui::GetMainViewport()->Size;
         ImGui::SetNextWindowPos(
             ImVec2{
                 main_window_pos.x + main_window_size.x - get_style().padding_x,
