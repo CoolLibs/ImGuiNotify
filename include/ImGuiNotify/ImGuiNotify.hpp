@@ -16,15 +16,29 @@ enum class Type {
 };
 
 struct Notification {
-    Type                      type{Type::Info};
-    std::string               title{""};
-    std::string               content{""};
-    std::function<void()>     custom_imgui_content{}; // ⚠ The lambda must capture everything by copy, it will be stored
-    std::chrono::milliseconds duration{5s};
+    Type                                     type{Type::Info};
+    std::string                              title{""};
+    std::string                              content{""};
+    std::function<void()>                    custom_imgui_content{}; /// ⚠ The lambda must capture everything by copy, it will be stored
+    std::optional<std::chrono::milliseconds> duration{5s};           /// Set to std::nullopt to have an infinite duration. You then need to call ImGuiNotify::close(notification_id) manually.
+};
+
+class NotificationId {
+private:
+    friend void render_windows();
+
+    friend auto operator==(NotificationId const&, NotificationId const&) -> bool = default;
+
+    inline static uint64_t _next_id{0};
+    uint64_t               _id{_next_id++};
 };
 
 /// This is thread-safe and can be called from any thread
-void send(Notification);
+/// Returns a NotificationId that can be used to close() the notification (e.g. if it has an infinite duration)
+auto send(Notification) -> NotificationId;
+/// Starts the closing animation (after a given `delay`)
+/// Does nothing if the notification has already been closed
+void close(NotificationId, std::chrono::milliseconds delay = 0s);
 /// Must be called once per frame, during your normal imgui frame (before ImGui::Render())
 void render_windows();
 /// Must be called once when initializing imgui (if you use a custom font, call it just after adding that font)

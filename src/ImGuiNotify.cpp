@@ -62,7 +62,7 @@ public:
     auto content() const -> std::string const& { return _notification.content; }
     auto custom_imgui_content() const -> std::function<void()> const& { return _notification.custom_imgui_content; }
     auto title() const -> std::string const& { return _notification.title; }
-    auto unique_id() const -> std::string const& { return _unique_id; }
+    auto unique_id() const -> NotificationId const& { return _unique_id; }
     auto has_been_init() const -> bool { return _creation_time.has_value(); }
 
     auto elapsed_time() const
@@ -74,50 +74,72 @@ public:
     auto has_expired() const -> bool
     {
         return has_been_init()
-               && elapsed_time() > _notification.duration + get_style().fade_in_duration + get_style().fade_out_duration;
+               && _notification.duration.has_value()
+               && elapsed_time() > *_notification.duration + get_style().fade_in_duration + get_style().fade_out_duration;
     }
 
     auto is_fading_out() const -> bool
     {
         return has_been_init()
-               && elapsed_time() > _notification.duration + get_style().fade_in_duration;
+               && _notification.duration.has_value()
+               && elapsed_time() > *_notification.duration + get_style().fade_in_duration;
     }
+
     auto fade_percent() const -> float
     {
-        float const elapsed_ms  = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time()).count());
-        float const fade_in_ms  = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().fade_in_duration).count());
-        float const fade_out_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().fade_out_duration).count());
-        float const duration_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(_notification.duration).count());
+        float const elapsed_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time()).count());
+        float const fade_in_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().fade_in_duration).count());
 
-        float opacity = 1.f;
+        float percent = 1.f;
 
         if (elapsed_ms < fade_in_ms)
-            opacity = elapsed_ms / fade_in_ms;
-        else if (elapsed_ms > duration_ms + fade_in_ms)
-            opacity = 1.f - (elapsed_ms - fade_in_ms - duration_ms) / fade_out_ms;
+            percent = elapsed_ms / fade_in_ms;
+        else if (_notification.duration.has_value())
+        {
+            if (_is_hovered)
+                return 1.f; // Prevent jitter when a notification is hovered and we call close() on this notification
 
-        return std::clamp(opacity, 0.f, 1.f);
+            float const duration_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(*_notification.duration).count());
+            float const fade_out_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().fade_out_duration).count());
+            if (elapsed_ms > duration_ms + fade_in_ms)
+                percent = 1.f - (elapsed_ms - fade_in_ms - duration_ms) / fade_out_ms;
+        }
+
+        return std::clamp(percent, 0.f, 1.f);
     }
 
     void init_creation_time_ifn()
     {
         if (_creation_time.has_value())
             return;
-        _creation_time.emplace(std::chrono::steady_clock::now());
+        _creation_time = std::chrono::steady_clock::now();
     }
 
     void reset_creation_time()
     {
         if (elapsed_time() > get_style().fade_in_duration)
-            _creation_time.emplace(std::chrono::steady_clock::now() - get_style().fade_in_duration);
+            _creation_time = std::chrono::steady_clock::now() - get_style().fade_in_duration;
+    }
+
+    void set_hovered(bool is_hovered)
+    {
+        _is_hovered = is_hovered;
+        if (is_hovered)
+            reset_creation_time();
+    }
+
+    void close(std::chrono::milliseconds delay)
+    {
+        _notification.duration = delay;
+        reset_creation_time();
     }
 
 private:
     Notification                                         _notification;
     std::optional<std::chrono::steady_clock::time_point> _creation_time{};
+    bool                                                 _is_hovered{false};
 
-    inline static uint64_t _next_id{0};
-    std::string            _unique_id{std::to_string(_next_id++)};
+    NotificationId _unique_id{};
 };
 } // namespace
 
@@ -132,10 +154,22 @@ static auto notifications_mutex() -> std::mutex&
     return instance;
 }
 
-void send(Notification notification)
+auto send(Notification notification) -> NotificationId
 {
     auto lock = std::unique_lock{notifications_mutex()};
     notifications().emplace_back(std::move(notification));
+    return notifications().back().unique_id();
+}
+
+void close(NotificationId id, std::chrono::milliseconds delay)
+{
+    auto       lock = std::unique_lock{notifications_mutex()};
+    auto const it   = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notification) {
+        return notification.unique_id() == id;
+    });
+    if (it == notifications().end())
+        return;
+    it->close(delay);
 }
 
 static auto ImU32_from_ImVec4(ImVec4 color) -> ImU32
@@ -213,14 +247,13 @@ void render_windows()
 
         ImGui::PushStyleColor(ImGuiCol_Border, notif.color());
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, get_style().border_width);
-        ImGui::Begin(("##notification" + notif.unique_id()).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
+        ImGui::Begin(("##notification" + std::to_string(notif.unique_id()._id)).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
 
         // Render over all other windows
         ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
 
         // Keep alive if hovered
-        if (ImGui::IsWindowHovered())
-            notif.reset_creation_time();
+        notif.set_hovered(ImGui::IsWindowHovered());
 
         // Here we render the content
         {
