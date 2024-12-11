@@ -35,13 +35,22 @@ private:
 };
 
 /// This is thread-safe and can be called from any thread
-/// Returns a NotificationId that can be used to close() the notification (e.g. if it has an infinite duration)
+/// Returns a NotificationId that can be used to change() or close_after_small_delay() the notification (e.g. if it has an infinite duration)
 auto send(Notification) -> NotificationId;
+
+/// This is thread-safe and can be called from any thread
+/// Changes the content of a notification that has already been sent
+/// Does nothing if the notification has already been closed
+void change(NotificationId, Notification);
+
+/// This is thread-safe and can be called from any thread
 /// Starts the closing animation (after a given `delay`)
 /// Does nothing if the notification has already been closed
-void close(NotificationId, std::chrono::milliseconds delay = 0s);
+void close_after_small_delay(NotificationId, std::chrono::milliseconds delay = 1s);
+
 /// Must be called once per frame, during your normal imgui frame (before ImGui::Render())
 void render_windows();
+
 /// Must be called once when initializing imgui (if you use a custom font, call it just after adding that font)
 /// If you don't use custom fonts, you must call ImGui::GetIO().Fonts->AddFontDefault() before calling ImGuiNotify::add_icons_to_current_font()
 /// NB: you might have to tweak glyph_offset if the icons don't properly align with your custom font

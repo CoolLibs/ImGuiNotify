@@ -134,6 +134,12 @@ public:
         reset_creation_time();
     }
 
+    void change(Notification notification)
+    {
+        _notification = std::move(notification);
+        reset_creation_time();
+    }
+
 private:
     Notification                                         _notification;
     std::optional<std::chrono::steady_clock::time_point> _creation_time{};
@@ -161,7 +167,18 @@ auto send(Notification notification) -> NotificationId
     return notifications().back().unique_id();
 }
 
-void close(NotificationId id, std::chrono::milliseconds delay)
+void change(NotificationId id, Notification notification)
+{
+    auto       lock = std::unique_lock{notifications_mutex()};
+    auto const it   = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notification) {
+        return notification.unique_id() == id;
+    });
+    if (it == notifications().end())
+        return;
+    it->change(std::move(notification));
+}
+
+void close_after_small_delay(NotificationId id, std::chrono::milliseconds delay)
 {
     auto       lock = std::unique_lock{notifications_mutex()};
     auto const it   = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notification) {
