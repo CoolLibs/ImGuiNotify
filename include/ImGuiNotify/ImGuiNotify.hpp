@@ -21,7 +21,8 @@ struct Notification {
     std::string                              title{""};
     std::string                              content{""};
     std::function<void()>                    custom_imgui_content{}; /// ⚠ The lambda must capture everything by copy, it will be stored
-    std::optional<std::chrono::milliseconds> duration{5s};           /// Set to std::nullopt to have an infinite duration. You then need to call ImGuiNotify::close(notification_id) manually.
+    std::optional<std::chrono::milliseconds> duration{5s};                            /// Set to std::nullopt to have an infinite duration. You then need to call ImGuiNotify::close(notification_id) manually.
+    bool                                     hovering_keeps_notification_alive{true}; /// While this is true, if the user hovers the notification it will reset its lifetime
 };
 
 class NotificationId {
@@ -34,19 +35,24 @@ private:
     uint64_t               _id{_next_id++};
 };
 
-/// This is thread-safe and can be called from any thread
 /// Returns a NotificationId that can be used to change() or close_after_small_delay() the notification (e.g. if it has an infinite duration)
+/// This is thread-safe and can be called from any thread
 auto send(Notification) -> NotificationId;
 
-/// This is thread-safe and can be called from any thread
 /// Changes the content of a notification that has already been sent
 /// Does nothing if the notification has already been closed
+/// This is thread-safe and can be called from any thread
 void change(NotificationId, Notification);
 
-/// This is thread-safe and can be called from any thread
-/// Starts the closing animation (after a given `delay`)
+/// Starts the closing animation after a given `delay`
 /// Does nothing if the notification has already been closed
+/// This is thread-safe and can be called from any thread
 void close_after_small_delay(NotificationId, std::chrono::milliseconds delay = 1s);
+
+/// Starts the closing animation immediately
+/// Does nothing if the notification has already been closed
+/// This is thread-safe and can be called from any thread
+void close_immediately(NotificationId);
 
 /// Must be called once per frame, during your normal imgui frame (before ImGui::Render())
 void render_windows();

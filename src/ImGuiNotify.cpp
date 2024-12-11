@@ -71,6 +71,13 @@ public:
         return std::chrono::steady_clock::now() - *_creation_time;
     }
 
+    auto duration_before_fade_out_starts() const
+    {
+        assert(has_been_init());
+        assert(_notification.duration.has_value());
+        return *_notification.duration + get_style().fade_in_duration - elapsed_time();
+    }
+
     auto has_expired() const -> bool
     {
         return has_been_init()
@@ -87,6 +94,9 @@ public:
 
     auto fade_percent() const -> float
     {
+        if (!has_been_init())
+            return 0.f;
+
         float const elapsed_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time()).count());
         float const fade_in_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().fade_in_duration).count());
 
@@ -96,9 +106,6 @@ public:
             percent = elapsed_ms / fade_in_ms;
         else if (_notification.duration.has_value())
         {
-            if (_is_hovered)
-                return 1.f; // Prevent jitter when a notification is hovered and we call close() on this notification
-
             float const duration_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(*_notification.duration).count());
             float const fade_out_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().fade_out_duration).count());
             if (elapsed_ms > duration_ms + fade_in_ms)
@@ -117,21 +124,32 @@ public:
 
     void reset_creation_time()
     {
+        if (!has_been_init())
+            return;
         if (elapsed_time() > get_style().fade_in_duration)
             _creation_time = std::chrono::steady_clock::now() - get_style().fade_in_duration;
     }
 
     void set_hovered(bool is_hovered)
     {
-        _is_hovered = is_hovered;
-        if (is_hovered)
+        if (is_hovered && _notification.hovering_keeps_notification_alive)
             reset_creation_time();
     }
 
-    void close(std::chrono::milliseconds delay)
+    void close_after_at_most(std::chrono::milliseconds delay)
     {
-        _notification.duration = delay;
-        reset_creation_time();
+        if (!has_been_init() || !_notification.duration.has_value())
+        {
+            _notification.duration = delay;
+            return;
+        }
+        if (duration_before_fade_out_starts() > delay)
+            _notification.duration = delay;
+    }
+
+    void hovering_keeps_it_alive(bool hovering_keeps_notification_alive)
+    {
+        _notification.hovering_keeps_notification_alive = hovering_keeps_notification_alive;
     }
 
     void change(Notification notification)
@@ -143,7 +161,6 @@ public:
 private:
     Notification                                         _notification;
     std::optional<std::chrono::steady_clock::time_point> _creation_time{};
-    bool                                                 _is_hovered{false};
 
     NotificationId _unique_id{};
 };
@@ -167,7 +184,7 @@ auto send(Notification notification) -> NotificationId
     return notifications().back().unique_id();
 }
 
-void change(NotificationId id, Notification notification)
+static void with_notification(NotificationId id, std::function<void(NotificationImpl&)> const& callback)
 {
     auto       lock = std::unique_lock{notifications_mutex()};
     auto const it   = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notification) {
@@ -175,18 +192,29 @@ void change(NotificationId id, Notification notification)
     });
     if (it == notifications().end())
         return;
-    it->change(std::move(notification));
+    callback(*it);
+}
+
+void change(NotificationId id, Notification notification)
+{
+    with_notification(id, [&](NotificationImpl& notification_impl) {
+        notification_impl.change(std::move(notification));
+    });
 }
 
 void close_after_small_delay(NotificationId id, std::chrono::milliseconds delay)
 {
-    auto       lock = std::unique_lock{notifications_mutex()};
-    auto const it   = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notification) {
-        return notification.unique_id() == id;
+    with_notification(id, [&](NotificationImpl& notification) {
+        notification.close_after_at_most(delay);
     });
-    if (it == notifications().end())
-        return;
-    it->close(delay);
+}
+
+void close_immediately(NotificationId id)
+{
+    with_notification(id, [&](NotificationImpl& notification) {
+        notification.close_after_at_most(100ms);
+        notification.hovering_keeps_it_alive(false);
+    });
 }
 
 static auto ImU32_from_ImVec4(ImVec4 color) -> ImU32
