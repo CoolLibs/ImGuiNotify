@@ -136,6 +136,11 @@ public:
             reset_creation_time();
     }
 
+    void set_window_height(float height)
+    {
+        _window_height = height;
+    }
+
     void close_after_at_most(std::chrono::milliseconds delay)
     {
         if (!has_been_init() || !_notification.duration.has_value())
@@ -156,11 +161,38 @@ public:
     {
         _notification = std::move(notification);
         reset_creation_time();
+        if (_window_height.has_value())
+        {
+            _window_height_before_change = *_window_height;
+            _time_of_change              = std::chrono::steady_clock::now();
+        }
+    }
+
+    void apply_window_height_transition_ifn(float& window_height)
+    {
+        if (!_time_of_change.has_value())
+            return;
+
+        float const time_since_change_ms = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - *_time_of_change).count());
+        float const duration_ms          = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(get_style().change_duration).count());
+
+        if (time_since_change_ms > duration_ms)
+        {
+            _time_of_change.reset();
+            return;
+        }
+
+        float const t = time_since_change_ms / duration_ms;
+        window_height = t * window_height + (1.f - t) * _window_height_before_change;
     }
 
 private:
     Notification                                         _notification;
     std::optional<std::chrono::steady_clock::time_point> _creation_time{};
+
+    std::optional<float>                                 _window_height{};
+    float                                                _window_height_before_change{};
+    std::optional<std::chrono::steady_clock::time_point> _time_of_change{};
 
     NotificationId _unique_id{};
 };
@@ -269,8 +301,6 @@ void render_windows()
         auto& notif = notifications()[i];
         notif.init_creation_time_ifn(); // Init creation time the first time a notification is shown, because if they are outside the window they might prevent it from showing for a while, and we don't want it to disappear immediately after appearing
 
-        float const fade_percent = notif.fade_percent();
-
         // Set window position and size
         ImGui::SetNextWindowPos(
             ImVec2{
@@ -284,10 +314,11 @@ void render_windows()
             ImVec2{FLT_MAX, FLT_MAX},
             [](ImGuiSizeCallbackData* data) {
                 // in / out transition by cropping the window size
-                float const fade_percent = *reinterpret_cast<float const*>(data->UserData); // NOLINT(*reinterpret-cast)
-                data->DesiredSize        = ImVec2{data->DesiredSize.x, data->DesiredSize.y * fade_percent};
+                NotificationImpl& notif = *reinterpret_cast<NotificationImpl*>(data->UserData); // NOLINT(*reinterpret-cast)
+                data->DesiredSize.y *= notif.fade_percent();
+                notif.apply_window_height_transition_ifn(data->DesiredSize.y);
             },
-            (void*)&fade_percent // NOLINT(*casting)
+            (void*)&notif // NOLINT(*casting)
         );
 
         ImGui::PushStyleColor(ImGuiCol_Border, notif.color());
@@ -327,7 +358,9 @@ void render_windows()
         }
 
         // Update height for next notification
-        height += ImGui::GetWindowHeight() + get_style().padding_between_notifications_y * fade_percent;
+        float const window_height = ImGui::GetWindowHeight();
+        notif.set_window_height(window_height);
+        height += window_height + get_style().padding_between_notifications_y * notif.fade_percent();
 
         // End
         ImGui::End();
