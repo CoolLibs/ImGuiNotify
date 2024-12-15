@@ -63,6 +63,7 @@ public:
     auto custom_imgui_content() const -> std::function<void()> const& { return _notification.custom_imgui_content; }
     auto title() const -> std::string const& { return _notification.title; }
     auto unique_id() const -> NotificationId const& { return _unique_id; }
+    auto is_closable() const -> bool { return _notification.is_closable; }
     auto has_been_init() const -> bool { return _creation_time.has_value(); }
 
     auto elapsed_time() const
@@ -152,9 +153,10 @@ public:
             _notification.duration = delay;
     }
 
-    void hovering_keeps_it_alive(bool hovering_keeps_notification_alive)
+    void close_immediately()
     {
-        _notification.hovering_keeps_notification_alive = hovering_keeps_notification_alive;
+        _notification.hovering_keeps_notification_alive = false;
+        close_after_at_most(100ms);
     }
 
     void change(Notification notification)
@@ -244,8 +246,7 @@ void close_after_small_delay(NotificationId id, std::chrono::milliseconds delay)
 void close_immediately(NotificationId id)
 {
     with_notification(id, [&](NotificationImpl& notification) {
-        notification.close_after_at_most(100ms);
-        notification.hovering_keeps_it_alive(false);
+        notification.close_immediately();
     });
 }
 
@@ -340,6 +341,25 @@ void render_windows()
                 ImGui::TextColored(notif.color(), "%s", notif.icon());
                 ImGui::SameLine();
                 ImGui::TextUnformatted(notif.title().c_str());
+                // if (notif.is_closable())
+                // {
+                //     ImGui::SameLine();
+
+                //     // Render the dismiss button on the top right corner
+                //     // NEEDS TO BE REWORKED
+                //     float scale = 0.8f;
+
+                //     // if (CalcTextSize(content).x > ImGui::GetContentRegionAvail().x)
+                //     // {
+                //     //     scale = 0.8f;
+                //     // }
+
+                //     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetWindowSize().x - ImGui::GetCursorPosX()) * scale);
+
+                //     if (ImGui::Button(ICON_FA_XMARK))
+                //         // if (ImGui::CloseButton(0, {}, 30.f, true))
+                //         notif.close_immediately();
+                // }
             });
 
             // Content
