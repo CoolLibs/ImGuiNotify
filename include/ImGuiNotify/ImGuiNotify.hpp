@@ -21,8 +21,8 @@ struct Notification {
     std::string                              title{""};
     std::string                              content{""};
     std::function<void()>                    custom_imgui_content{}; /// ⚠ The lambda must capture everything by copy, it will be stored
+    std::optional<std::chrono::milliseconds> duration{5s};           /// Set to std::nullopt to have an infinite duration. You then need to call ImGuiNotify::close(notification_id) manually.
     bool                                     is_closable{true};
-    std::optional<std::chrono::milliseconds> duration{5s};                            /// Set to std::nullopt to have an infinite duration. You then need to call ImGuiNotify::close(notification_id) manually.
     bool                                     hovering_keeps_notification_alive{true}; /// While this is true, if the user hovers the notification it will reset its lifetime
 };
 
