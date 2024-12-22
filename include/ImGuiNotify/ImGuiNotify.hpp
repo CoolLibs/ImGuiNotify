@@ -27,13 +27,26 @@ struct Notification {
 };
 
 class NotificationId {
-private:
-    friend void render_windows();
+public:
+    /// Creates an invalid ID
+    NotificationId()
+        : _id{0}
+    {}
 
+private:
+    friend class NotificationImpl;
+    struct MakeValid {};
+    inline static uint64_t _next_id{1}; // 0 is an invalid ID, start at 1
+
+    explicit NotificationId(MakeValid)
+        : _id{_next_id++}
+    {}
+
+    friend void render_windows();
     friend auto operator==(NotificationId const&, NotificationId const&) -> bool = default;
 
-    inline static uint64_t _next_id{0};
-    uint64_t               _id{_next_id++};
+private:
+    uint64_t _id;
 };
 
 /// Returns a NotificationId that can be used to change() or close_after_small_delay() the notification (e.g. if it has an infinite duration)

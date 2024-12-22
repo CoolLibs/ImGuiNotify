@@ -12,7 +12,6 @@
 
 namespace ImGuiNotify {
 
-namespace {
 class NotificationImpl {
 public:
     explicit NotificationImpl(Notification notification)
@@ -196,9 +195,8 @@ private:
     float                                                _window_height_before_change{};
     std::optional<std::chrono::steady_clock::time_point> _time_of_change{};
 
-    NotificationId _unique_id{};
+    NotificationId _unique_id{NotificationId::MakeValid{}};
 };
-} // namespace
 
 static auto notifications() -> std::vector<NotificationImpl>&
 {
