@@ -258,26 +258,59 @@ static auto ImU32_from_ImVec4(ImVec4 color) -> ImU32
     ));
 }
 
-static void background(ImVec4 color, std::function<void()> const& widget)
+static auto background(ImVec4 color, std::function<void()> const& widget) -> ImRect
 {
     ImDrawList& draw_list = *ImGui::GetWindowDrawList();
-    draw_list.ChannelsSplit(2);                                     // Allows us to draw the background rectangle behind the widget,
-    draw_list.ChannelsSetCurrent(1);                                // even though the widget is drawn first.
-    ImVec2 const rectangle_start_pos = ImGui::GetCursorScreenPos(); // We must draw them in that order because we need to know the height of the widget before drawing the rectangle.
+    draw_list.ChannelsSplit(2);      // Allows us to draw the background rectangle behind the widget, even though the widget is drawn first.
+    draw_list.ChannelsSetCurrent(1); // We must draw them in that order because we need to know the height of the widget before drawing the rectangle.
+
+    ImVec2 const rectangle_start_pos = ImGui::GetCursorScreenPos() - ImGui::GetStyle().WindowPadding;
 
     widget();
 
     auto const rectangle_end_pos = ImVec2{
-        rectangle_start_pos.x + ImGui::GetContentRegionAvail().x,
+        rectangle_start_pos.x + ImGui::GetContentRegionAvail().x + 2.f * ImGui::GetStyle().WindowPadding.x,
         ImGui::GetCursorScreenPos().y
     };
+
+    auto const rect = ImRect{rectangle_start_pos, rectangle_end_pos};
+
     draw_list.ChannelsSetCurrent(0);
     draw_list.AddRectFilled(
-        rectangle_start_pos - ImGui::GetStyle().WindowPadding,
-        rectangle_end_pos + ImVec2{ImGui::GetStyle().WindowPadding.x, 0.f},
+        rect.GetTL(),
+        rect.GetBR(),
         ImU32_from_ImVec4(color)
     );
     draw_list.ChannelsMerge();
+
+    return rect;
+}
+
+static auto close_button(ImRect const title_bar_rect) -> bool
+{
+    bool has_closed{false};
+
+    ImGuiContext&      g{*GImGui};
+    ImGuiWindow* const window{ImGui::GetCurrentWindow()};
+    // Close button is on the Menu NavLayer and doesn't default focus (unless there's nothing else on that layer)
+    // FIXME-NAV: Might want (or not?) to set the equivalent of ImGuiButtonFlags_NoNavFocus so that mouse clicks on standard title bar items don't necessarily set nav/keyboard ref?
+    ImGuiItemFlags const item_flags_backup = g.CurrentItemFlags;
+    g.CurrentItemFlags |= ImGuiItemFlags_NoNavDefaultFocus;
+    window->DC.NavLayerCurrent = ImGuiNavLayer_Menu;
+
+    float const button_sz        = ImGui::GetFontSize();
+    auto const  close_button_pos = ImVec2{
+        title_bar_rect.Max.x - button_sz - ImGui::GetStyle().FramePadding.x,
+        title_bar_rect.GetCenter().y - button_sz * 0.5f,
+    };
+
+    if (ImGui::CloseButton(window->GetID("#CLOSE"), close_button_pos))
+        has_closed = true;
+
+    window->DC.NavLayerCurrent = ImGuiNavLayer_Main;
+    g.CurrentItemFlags         = item_flags_backup;
+
+    return has_closed;
 }
 
 void render_windows()
@@ -334,31 +367,19 @@ void render_windows()
         {
             ImGui::PushTextWrapPos(ImGui::GetWindowWidth()); // Support multi-line text
 
-            // Title
-            background(get_style().color_title_background, [&]() {
+            // Title bar
+            auto const title_bar_rect = background(get_style().color_title_background, [&]() {
                 ImGui::TextColored(notif.color(), "%s", notif.icon());
                 ImGui::SameLine();
                 ImGui::TextUnformatted(notif.title().c_str());
-                // if (notif.is_closable())
-                // {
-                //     ImGui::SameLine();
-
-                //     // Render the dismiss button on the top right corner
-                //     // NEEDS TO BE REWORKED
-                //     float scale = 0.8f;
-
-                //     // if (CalcTextSize(content).x > ImGui::GetContentRegionAvail().x)
-                //     // {
-                //     //     scale = 0.8f;
-                //     // }
-
-                //     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetWindowSize().x - ImGui::GetCursorPosX()) * scale);
-
-                //     if (ImGui::Button(ICON_FA_XMARK))
-                //         // if (ImGui::CloseButton(0, {}, 30.f, true))
-                //         notif.close_immediately();
-                // }
             });
+
+            // Close button
+            if (notif.is_closable())
+            {
+                if (close_button(title_bar_rect))
+                    notif.close_immediately();
+            }
 
             // Content
             if (notif.has_content())
