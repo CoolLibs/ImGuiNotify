@@ -198,12 +198,20 @@ private:
     NotificationId _unique_id{NotificationId::MakeValid{}};
 };
 
-static auto notifications() -> std::vector<NotificationImpl>&
+static auto notifications() -> auto&
 {
     static auto instance = std::vector<NotificationImpl>{};
     return instance;
 }
-static auto notifications_mutex() -> std::mutex&
+// We don't want to lock while rendering the notifications in render_windows()
+// because we want to allow the custom_imgui_content() of notifications to send / change / close notifications.
+// So instead we delay all these actions so that they don't conflict while we are iterating on the list of notifications
+static auto delayed_actions() -> auto&
+{
+    static auto instance = std::vector<std::function<void()>>{};
+    return instance;
+}
+static auto delayed_actions_mutex() -> auto&
 {
     static auto instance = std::mutex{};
     return instance;
@@ -211,15 +219,20 @@ static auto notifications_mutex() -> std::mutex&
 
 auto send(Notification notification) -> NotificationId
 {
-    auto lock = std::unique_lock{notifications_mutex()};
-    notifications().emplace_back(std::move(notification));
-    return notifications().back().unique_id();
+    auto       notif_impl = NotificationImpl{std::move(notification)};
+    auto const id         = notif_impl.unique_id();
+    {
+        auto lock = std::unique_lock{delayed_actions_mutex()};
+        delayed_actions().emplace_back([notif_impl = std::move(notif_impl)]() {
+            notifications().emplace_back(notif_impl);
+        });
+    }
+    return id;
 }
 
 static void with_notification(NotificationId id, std::function<void(NotificationImpl&)> const& callback)
 {
-    auto       lock = std::unique_lock{notifications_mutex()};
-    auto const it   = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notification) {
+    auto const it = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notification) {
         return notification.unique_id() == id;
     });
     if (it == notifications().end())
@@ -229,22 +242,34 @@ static void with_notification(NotificationId id, std::function<void(Notification
 
 void change(NotificationId id, Notification notification)
 {
-    with_notification(id, [&](NotificationImpl& notification_impl) {
-        notification_impl.change(std::move(notification));
+    auto lock = std::unique_lock{delayed_actions_mutex()};
+
+    delayed_actions().emplace_back([id, notification = std::move(notification)]() mutable {
+        with_notification(id, [&](NotificationImpl& notification_impl) {
+            notification_impl.change(std::move(notification));
+        });
     });
 }
 
 void close_after_small_delay(NotificationId id, std::chrono::milliseconds delay)
 {
-    with_notification(id, [&](NotificationImpl& notification) {
-        notification.close_after_at_most(delay);
+    auto lock = std::unique_lock{delayed_actions_mutex()};
+
+    delayed_actions().emplace_back([id, delay]() {
+        with_notification(id, [&](NotificationImpl& notification) {
+            notification.close_after_at_most(delay);
+        });
     });
 }
 
 void close_immediately(NotificationId id)
 {
-    with_notification(id, [&](NotificationImpl& notification) {
-        notification.close_immediately();
+    auto lock = std::unique_lock{delayed_actions_mutex()};
+
+    delayed_actions().emplace_back([id]() {
+        with_notification(id, [&](NotificationImpl& notification) {
+            notification.close_immediately();
+        });
     });
 }
 
@@ -315,7 +340,12 @@ static auto close_button(ImRect const title_bar_rect) -> bool
 
 void render_windows()
 {
-    auto lock = std::unique_lock{notifications_mutex()};
+    {
+        auto lock = std::unique_lock{delayed_actions_mutex()};
+        for (auto const& action : delayed_actions())
+            action();
+        delayed_actions().clear();
+    }
 
     std::erase_if(notifications(), [](NotificationImpl const& notification) {
         return notification.has_expired();
