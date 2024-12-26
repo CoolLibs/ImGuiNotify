@@ -143,19 +143,27 @@ public:
 
     void close_after_at_most(std::chrono::milliseconds delay)
     {
-        if (!has_been_init() || !_notification.duration.has_value())
+        if (!has_been_init())
         {
-            _notification.duration = delay;
-            return;
+            // Notification has not been shown on screen yet, so just change it's duration to make sure it is not bigger than `delay`
+            if (_notification.duration.has_value())
+                _notification.duration = std::min(*_notification.duration, delay);
+            else
+                _notification.duration = delay;
         }
-        if (duration_before_fade_out_starts() > delay)
-            _notification.duration = delay;
+        else if (!_notification.duration.has_value() || duration_before_fade_out_starts() > delay)
+        {
+            // Adapt the duration so that the fade out starts in exactly `delay`
+            _notification.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                elapsed_time() - get_style().fade_in_duration + delay
+            );
+        }
     }
 
     void close_immediately()
     {
         _notification.hovering_keeps_notification_alive = false;
-        close_after_at_most(100ms);
+        close_after_at_most(0ms);
     }
 
     void change(Notification notification)
