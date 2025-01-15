@@ -80,9 +80,10 @@ public:
 
     auto has_expired() const -> bool
     {
-        return has_been_init()
-               && _notification.duration.has_value()
-               && elapsed_time() > *_notification.duration + get_style().fade_in_duration + get_style().fade_out_duration;
+        return _remove_asap
+               || (has_been_init()
+                   && _notification.duration.has_value()
+                   && elapsed_time() > *_notification.duration + get_style().fade_in_duration + get_style().fade_out_duration);
     }
 
     auto is_fading_out() const -> bool
@@ -163,7 +164,10 @@ public:
     void close_immediately()
     {
         _notification.hovering_keeps_notification_alive = false;
-        close_after_at_most(0ms);
+        if (!has_been_init())
+            _remove_asap = true; // If we close immediately after sending, this prevents the notification from animating in, and then animating out immediately. This cancels all the animations.
+        else
+            close_after_at_most(0ms);
     }
 
     void change(Notification notification)
@@ -198,6 +202,7 @@ public:
 private:
     Notification                                         _notification;
     std::optional<std::chrono::steady_clock::time_point> _creation_time{};
+    bool                                                 _remove_asap{false};
 
     std::optional<float>                                 _window_height{};
     float                                                _window_height_before_change{};
@@ -366,7 +371,7 @@ void render_windows()
         ImVec2 const main_window_size = ImGui::GetMainViewport()->Size;
 
         if (height > main_window_size.y - 100.f)
-            break;
+            break; // TODO(Notifications) Allow scrolling. eg switch to rendering just one window, with all notifications as child windows, and rely on imgui to do the scrollbar
 
         auto& notif = notifications()[i];
         notif.init_creation_time_ifn(); // Init creation time the first time a notification is shown, because if they are outside the window they might prevent it from showing for a while, and we don't want it to disappear immediately after appearing
