@@ -12,6 +12,17 @@
 
 namespace ImGuiNotify {
 
+static auto notification_callbacks() -> std::vector<std::function<void(Notification const&)>>&
+{
+    static auto instance = std::vector<std::function<void(Notification const&)>>{};
+    return instance;
+}
+
+void add_notification_callback(std::function<void(Notification const&)> callback)
+{
+    notification_callbacks().emplace_back(std::move(callback));
+}
+
 class NotificationImpl {
 public:
     explicit NotificationImpl(Notification notification)
@@ -64,6 +75,7 @@ public:
     auto unique_id() const -> NotificationId const& { return _unique_id; }
     auto is_closable() const -> bool { return _notification.is_closable; }
     auto has_been_init() const -> bool { return _creation_time.has_value(); }
+    auto is_hovered() const -> bool { return _is_hovered; }
 
     auto elapsed_time() const
     {
@@ -133,13 +145,14 @@ public:
 
     void set_hovered(bool is_hovered)
     {
+        _is_hovered = is_hovered;
         if (is_hovered && _notification.hovering_keeps_notification_alive)
             reset_creation_time();
     }
 
-    void set_window_height(float height)
+    void set_desired_window_height(float height)
     {
-        _window_height = height;
+        _desired_window_height = height;
     }
 
     void close_after_at_most(std::chrono::milliseconds delay)
@@ -174,14 +187,14 @@ public:
     {
         _notification = std::move(notification);
         reset_creation_time();
-        if (_window_height.has_value())
+        if (_desired_window_height.has_value())
         {
-            _window_height_before_change = *_window_height;
-            _time_of_change              = std::chrono::steady_clock::now();
+            _desired_window_height_before_change = *_desired_window_height;
+            _time_of_change                      = std::chrono::steady_clock::now();
         }
     }
 
-    void apply_window_height_transition_ifn(float& window_height)
+    void apply_desired_window_height_transition_ifn(float& window_height)
     {
         if (!_time_of_change.has_value())
             return;
@@ -196,7 +209,7 @@ public:
         }
 
         float const t = time_since_change_ms / duration_ms;
-        window_height = t * window_height + (1.f - t) * _window_height_before_change;
+        window_height = t * window_height + (1.f - t) * _desired_window_height_before_change;
     }
 
 private:
@@ -204,9 +217,11 @@ private:
     std::optional<std::chrono::steady_clock::time_point> _creation_time{};
     bool                                                 _remove_asap{false};
 
-    std::optional<float>                                 _window_height{};
-    float                                                _window_height_before_change{};
+    std::optional<float>                                 _desired_window_height{}; // Real height that ImGui wants, does not take fade animation into account
+    float                                                _desired_window_height_before_change{};
     std::optional<std::chrono::steady_clock::time_point> _time_of_change{};
+
+    bool _is_hovered{false};
 
     NotificationId _unique_id{NotificationId::MakeValid{}};
 };
@@ -232,6 +247,9 @@ static auto delayed_actions_mutex() -> auto&
 
 auto send(Notification notification) -> NotificationId
 {
+    for (auto const& callback : notification_callbacks())
+        callback(notification);
+
     auto       notif_impl = NotificationImpl{std::move(notification)};
     auto const id         = notif_impl.unique_id();
     {
@@ -259,9 +277,23 @@ void change(NotificationId id, Notification notification)
 
     delayed_actions().emplace_back([id, notification = std::move(notification)]() mutable {
         with_notification(id, [&](NotificationImpl& notification_impl) {
+            for (auto const& callback : notification_callbacks())
+                callback(notification);
             notification_impl.change(std::move(notification));
         });
     });
+}
+
+void send_or_change(NotificationId& id, Notification notification)
+{
+    auto const it = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notif) {
+        return notif.unique_id() == id;
+    });
+
+    if (it == notifications().end())
+        id = send(std::move(notification));
+    else
+        change(id, std::move(notification));
 }
 
 void close_after_small_delay(NotificationId id, std::chrono::milliseconds delay)
@@ -284,6 +316,15 @@ void close_immediately(NotificationId id)
             notification.close_immediately();
         });
     });
+}
+
+auto is_notification_hovered(NotificationId id) -> bool
+{
+    auto is_hovered = false;
+    with_notification(id, [&](NotificationImpl const& notification) {
+        is_hovered = notification.is_hovered();
+    });
+    return is_hovered;
 }
 
 static auto ImU32_from_ImVec4(ImVec4 color) -> ImU32
@@ -390,8 +431,9 @@ void render_windows()
             [](ImGuiSizeCallbackData* data) {
                 // in / out transition by cropping the window size
                 NotificationImpl& notif = *reinterpret_cast<NotificationImpl*>(data->UserData); // NOLINT(*reinterpret-cast)
+                notif.set_desired_window_height(data->DesiredSize.y);
+                notif.apply_desired_window_height_transition_ifn(data->DesiredSize.y);
                 data->DesiredSize.y *= notif.fade_percent();
-                notif.apply_window_height_transition_ifn(data->DesiredSize.y);
             },
             (void*)&notif // NOLINT(*casting)
         );
@@ -441,7 +483,6 @@ void render_windows()
 
         // Update height for next notification
         float const window_height = ImGui::GetWindowHeight();
-        notif.set_window_height(window_height);
         height += window_height + get_style().padding_between_notifications_y * notif.fade_percent();
 
         // End

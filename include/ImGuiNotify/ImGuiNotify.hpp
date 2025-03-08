@@ -58,6 +58,10 @@ auto send(Notification) -> NotificationId;
 /// This is thread-safe and can be called from any thread
 void change(NotificationId, Notification);
 
+/// If the `id` does not refer to an existing Notification, then sends a new one and sets `id` to that new notification's id
+/// Otherwise changes the content of the notification referenced by `id`
+void send_or_change(NotificationId& id, Notification);
+
 /// Starts the closing animation after a given `delay`
 /// Does nothing if the notification has already been closed
 /// This is thread-safe and can be called from any thread
@@ -67,6 +71,11 @@ void close_after_small_delay(NotificationId, std::chrono::milliseconds delay = 1
 /// Does nothing if the notification has already been closed
 /// This is thread-safe and can be called from any thread
 void close_immediately(NotificationId);
+
+auto is_notification_hovered(NotificationId) -> bool;
+
+/// Adds a callback that will be called whenever a Notification is sent or changed
+void add_notification_callback(std::function<void(Notification const&)>);
 
 /// Must be called once per frame, during your normal imgui frame (before ImGui::Render())
 void render_windows();
