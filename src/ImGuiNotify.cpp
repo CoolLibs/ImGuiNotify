@@ -73,7 +73,7 @@ public:
     auto custom_imgui_content() const -> std::function<void()> const& { return _notification.custom_imgui_content; }
     auto title() const -> std::string const& { return _notification.title; }
     auto unique_id() const -> NotificationId const& { return _unique_id; }
-    auto is_closable() const -> bool { return _notification.is_closable; }
+    auto is_closable() const -> bool { return _notification.closable; }
     auto has_been_init() const -> bool { return _creation_time.has_value(); }
     auto is_hovered() const -> bool { return _is_hovered; }
 
