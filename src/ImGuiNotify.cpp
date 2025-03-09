@@ -271,20 +271,23 @@ static void with_notification(NotificationId id, std::function<void(Notification
     callback(*it);
 }
 
-void change(NotificationId id, Notification notification)
+void change(NotificationId id, Notification notification, bool trigger_notification_callbacks)
 {
     auto lock = std::unique_lock{delayed_actions_mutex()};
 
-    delayed_actions().emplace_back([id, notification = std::move(notification)]() mutable {
+    delayed_actions().emplace_back([id, notification = std::move(notification), trigger_notification_callbacks]() mutable {
         with_notification(id, [&](NotificationImpl& notification_impl) {
-            for (auto const& callback : notification_callbacks())
-                callback(notification);
+            if (trigger_notification_callbacks)
+            {
+                for (auto const& callback : notification_callbacks())
+                    callback(notification);
+            }
             notification_impl.change(std::move(notification));
         });
     });
 }
 
-void send_or_change(NotificationId& id, Notification notification)
+void send_or_change(NotificationId& id, Notification notification, bool trigger_notification_callbacks_when_changed)
 {
     auto const it = std::find_if(notifications().begin(), notifications().end(), [&](NotificationImpl const& notif) {
         return notif.unique_id() == id;
@@ -293,7 +296,7 @@ void send_or_change(NotificationId& id, Notification notification)
     if (it == notifications().end())
         id = send(std::move(notification));
     else
-        change(id, std::move(notification));
+        change(id, std::move(notification), trigger_notification_callbacks_when_changed);
 }
 
 void close_after_small_delay(NotificationId id, std::chrono::milliseconds delay)

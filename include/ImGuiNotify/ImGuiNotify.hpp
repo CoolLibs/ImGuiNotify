@@ -56,11 +56,11 @@ auto send(Notification) -> NotificationId;
 /// Changes the content of a notification that has already been sent
 /// Does nothing if the notification has already been closed
 /// This is thread-safe and can be called from any thread
-void change(NotificationId, Notification);
+void change(NotificationId, Notification, bool trigger_notification_callbacks = true);
 
 /// If the `id` does not refer to an existing Notification, then sends a new one and sets `id` to that new notification's id
 /// Otherwise changes the content of the notification referenced by `id`
-void send_or_change(NotificationId& id, Notification);
+void send_or_change(NotificationId& id, Notification, bool trigger_notification_callbacks_when_changed = true);
 
 /// Starts the closing animation after a given `delay`
 /// Does nothing if the notification has already been closed
