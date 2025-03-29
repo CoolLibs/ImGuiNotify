@@ -321,6 +321,15 @@ void close_immediately(NotificationId id)
     });
 }
 
+auto is_alive(NotificationId id) -> bool
+{
+    auto is_alive = false;
+    with_notification(id, [&](NotificationImpl const&) {
+        is_alive = true;
+    });
+    return is_alive;
+}
+
 auto is_notification_hovered(NotificationId id) -> bool
 {
     auto is_hovered = false;
@@ -473,7 +482,7 @@ void render_windows()
             if (notif.has_content())
             {
                 // Add a small padding after the title
-                ImGui::Dummy({0.f, 5.f});
+                ImGui::Dummy(ImVec2{0.f, 0.25f} * ImGui::GetFontSize());
 
                 if (!notif.content().empty())
                     ImGui::TextUnformatted(notif.content().c_str());

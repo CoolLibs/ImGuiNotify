@@ -72,6 +72,7 @@ void close_after_small_delay(NotificationId, std::chrono::milliseconds delay = 1
 /// This is thread-safe and can be called from any thread
 void close_immediately(NotificationId);
 
+auto is_alive(NotificationId) -> bool;
 auto is_notification_hovered(NotificationId) -> bool;
 
 /// Adds a callback that will be called whenever a Notification is sent or changed
