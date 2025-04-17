@@ -432,13 +432,13 @@ void render_windows()
         // Set window position and size
         ImGui::SetNextWindowPos(
             ImVec2{
-                main_window_pos.x + main_window_size.x - get_style().padding_x,
-                main_window_pos.y + main_window_size.y - get_style().padding_y - height
+                main_window_pos.x + main_window_size.x - get_style().padding_x * ImGui::GetFontSize(),
+                main_window_pos.y + main_window_size.y - get_style().padding_y * ImGui::GetFontSize() - height
             },
             ImGuiCond_Always, ImVec2{1.f, 1.f}
         );
         ImGui::SetNextWindowSizeConstraints(
-            ImVec2{get_style().min_width, 0.f}, // Min width
+            ImVec2{get_style().min_width * ImGui::GetFontSize(), 0.f}, // Min width
             ImVec2{FLT_MAX, FLT_MAX},
             [](ImGuiSizeCallbackData* data) {
                 // in / out transition by cropping the window size
@@ -451,7 +451,7 @@ void render_windows()
         );
 
         ImGui::PushStyleColor(ImGuiCol_Border, notif.color());
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, get_style().border_width);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, get_style().border_width * ImGui::GetFontSize());
         ImGui::Begin(("##notification" + std::to_string(notif.unique_id()._id)).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
 
         // Render over all other windows
@@ -495,7 +495,7 @@ void render_windows()
 
         // Update height for next notification
         float const window_height = ImGui::GetWindowHeight();
-        height += window_height + get_style().padding_between_notifications_y * notif.fade_percent();
+        height += window_height + get_style().padding_between_notifications_y * ImGui::GetFontSize() * notif.fade_percent();
 
         // End
         ImGui::End();
