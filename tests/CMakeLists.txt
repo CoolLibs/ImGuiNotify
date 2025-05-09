@@ -29,7 +29,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ImGuiNotify::ImGuiNotify)
 include(FetchContent)
 FetchContent_Declare(
     quick_imgui
-    GIT_REPOSITORY https://github.com/CoolLibs/quick_imgui
+    GIT_REPOSITORY https://github.com/Coollab-Art/quick_imgui
     GIT_TAG ee3de223f1d3b3ebed1e6b34963694b7e579a946
 )
 FetchContent_MakeAvailable(quick_imgui)
