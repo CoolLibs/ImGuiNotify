@@ -379,29 +379,29 @@ static auto background(ImVec4 color, std::function<void()> const& widget) -> ImR
 
 static auto close_button(ImRect const title_bar_rect) -> bool
 {
-    bool has_closed{false};
-
-    ImGuiContext&      g{*GImGui};
     ImGuiWindow* const window{ImGui::GetCurrentWindow()};
-    // Close button is on the Menu NavLayer and doesn't default focus (unless there's nothing else on that layer)
-    // FIXME-NAV: Might want (or not?) to set the equivalent of ImGuiButtonFlags_NoNavFocus so that mouse clicks on standard title bar items don't necessarily set nav/keyboard ref?
-    ImGuiItemFlags const item_flags_backup = g.CurrentItemFlags;
-    g.CurrentItemFlags |= ImGuiItemFlags_NoNavDefaultFocus;
-    window->DC.NavLayerCurrent = ImGuiNavLayer_Menu;
 
-    float const button_sz        = ImGui::GetFontSize();
-    auto const  close_button_pos = ImVec2{
-        title_bar_rect.Max.x - button_sz - ImGui::GetStyle().FramePadding.x,
-        title_bar_rect.GetCenter().y - button_sz * 0.5f,
-    };
+    float const border_size{get_style().border_width * ImGui::GetFontSize() * 0.5f};
+    float const button_size =
+#if defined(IMGUI_VERSION_COOLLAB) // CloseButtonSize() is a function added in our own fork of ImGui. Only use it if it is available.
+        ImGui::CloseButtonSize();
+#else
+        ImGui::GetFontSize();
+#endif
 
-    if (ImGui::CloseButton(window->GetID("#CLOSE"), close_button_pos))
-        has_closed = true;
+    auto const pos = /*  title_bar_rect.GetHeight() < 2.f * ImGui::GetFontSize()
+                          ? // If the title is only one line long, center the close button in y, otherwise stick it to the top of the title rect
+                          ImVec2{
+                              title_bar_rect.Max.x - button_size - border_size - ImGui::GetStyle().WindowPadding.y * 0.5f,
+                              title_bar_rect.GetCenter().y - button_size * 0.5f + border_size * 0.5f,
+                          }
+                          :  */
+        ImVec2{
+            title_bar_rect.Max.x - button_size - border_size - ImGui::GetStyle().WindowPadding.y * 0.5f,
+            title_bar_rect.Min.y + border_size + ImGui::GetStyle().WindowPadding.y * 0.5f,
+        };
 
-    window->DC.NavLayerCurrent = ImGuiNavLayer_Main;
-    g.CurrentItemFlags         = item_flags_backup;
-
-    return has_closed;
+    return ImGui::CloseButton(window->GetID("#CLOSE"), pos);
 }
 
 void render_windows()
