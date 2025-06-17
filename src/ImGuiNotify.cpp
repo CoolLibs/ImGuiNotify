@@ -452,7 +452,7 @@ void render_windows()
 
         ImGui::PushStyleColor(ImGuiCol_Border, notif.color());
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, get_style().border_width * ImGui::GetFontSize());
-        ImGui::Begin(("##notification" + std::to_string(notif.unique_id()._id)).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing);
+        ImGui::Begin(("##notification" + std::to_string(notif.unique_id()._id)).c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoSavedSettings);
 
         // Render over all other windows
         ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
