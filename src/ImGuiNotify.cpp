@@ -70,7 +70,7 @@ public:
         return !_notification.content.empty() || _notification.custom_imgui_content;
     }
     auto content() const -> std::string const& { return _notification.content; }
-    auto custom_imgui_content() const -> std::function<void()> const& { return _notification.custom_imgui_content; }
+    auto custom_imgui_content() const -> std::function<void(NotificationId const&)> const& { return _notification.custom_imgui_content; }
     auto title() const -> std::string const& { return _notification.title; }
     auto unique_id() const -> NotificationId const& { return _unique_id; }
     auto is_closable() const -> bool { return _notification.closable; }
@@ -487,7 +487,7 @@ void render_windows()
                 if (!notif.content().empty())
                     ImGui::TextUnformatted(notif.content().c_str());
                 if (notif.custom_imgui_content())
-                    notif.custom_imgui_content()();
+                    notif.custom_imgui_content()(notif.unique_id());
             }
 
             ImGui::PopTextWrapPos();

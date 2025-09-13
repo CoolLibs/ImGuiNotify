@@ -16,16 +16,6 @@ enum class Type {
     Info,
 };
 
-struct Notification {
-    Type                                     type{Type::Info};
-    std::string                              title{""};
-    std::string                              content{""};
-    std::function<void()>                    custom_imgui_content{}; /// ⚠ The lambda must capture everything by copy, it will be stored
-    std::optional<std::chrono::milliseconds> duration{5s};           /// Set to std::nullopt to have an infinite duration. You then need to call ImGuiNotify::close(notification_id) manually.
-    bool                                     closable{true};
-    bool                                     hovering_keeps_notification_alive{true}; /// While this is true, if the user hovers the notification it will reset its lifetime
-};
-
 class NotificationId {
 public:
     /// Creates an invalid ID
@@ -47,6 +37,16 @@ private:
 
 private:
     uint64_t _id;
+};
+
+struct Notification {
+    Type                                                     type{Type::Info};
+    std::string                                              title{""};
+    std::string                                              content{""};
+    std::function<void(NotificationId const& this_notif_id)> custom_imgui_content{}; /// ⚠ The lambda must capture everything by copy, it will be stored
+    std::optional<std::chrono::milliseconds>                 duration{5s};           /// Set to std::nullopt to have an infinite duration. You then need to call ImGuiNotify::close(notification_id) manually.
+    bool                                                     closable{true};
+    bool                                                     hovering_keeps_notification_alive{true}; /// While this is true, if the user hovers the notification it will reset its lifetime
 };
 
 /// Returns a NotificationId that can be used to change() or close_after_small_delay() the notification (e.g. if it has an infinite duration)
